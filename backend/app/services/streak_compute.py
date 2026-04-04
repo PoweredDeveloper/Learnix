@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -14,7 +14,7 @@ def _local_day_utc_bounds(today_local: date, tz_name: str) -> tuple[datetime, da
     tz = ZoneInfo(tz_name)
     start_local = datetime.combine(today_local, datetime.min.time(), tzinfo=tz)
     end_local = start_local + timedelta(days=1)
-    return start_local.astimezone(datetime.UTC), end_local.astimezone(datetime.UTC)
+    return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)
 
 
 async def daily_quota_minutes(db: AsyncSession, user_id: UUID, today: date) -> int:

@@ -44,13 +44,13 @@ When working on this repository, **read `PLAN.md` first**. This file defines **h
 
 ## Testing — required with every change
 
-| Change type | Minimum tests |
-|-------------|----------------|
-| New pure logic | **Unit** (`pytest`) |
-| New API route | **Integration** test with real PG test DB + mocked Ollama unless explicitly e2e |
-| New bot handler | **Dispatcher test** with mocked backend client |
-| Learn session / streak logic | **Unit** for math + timezone; **integration** for session POST + mocked Ollama |
-| New web flow (user-visible) | **Playwright** (or add to existing e2e) when the flow is stable |
+| Change type                  | Minimum tests                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| New pure logic               | **Unit** (`pytest`)                                                             |
+| New API route                | **Integration** test with real PG test DB + mocked Ollama unless explicitly e2e |
+| New bot handler              | **Dispatcher test** with mocked backend client                                  |
+| Learn session / streak logic | **Unit** for math + timezone; **integration** for session POST + mocked Ollama  |
+| New web flow (user-visible)  | **Playwright** (or add to existing e2e) when the flow is stable                 |
 
 - **Never** commit Ollama-dependent tests that call the network without `OLLAMA_E2E` or similar guard.
 - Prefer **factories/fixtures** for users/subjects/tasks over duplicated setup.

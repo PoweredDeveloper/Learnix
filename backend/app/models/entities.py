@@ -107,7 +107,10 @@ class StudyTask(Base):
     title: Mapped[str] = mapped_column(String(512))
     due_date: Mapped[date] = mapped_column(Date)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    status: Mapped[TaskStatus] = mapped_column(Enum(TaskStatus), default=TaskStatus.pending)
+    status: Mapped[TaskStatus] = mapped_column(
+        Enum(TaskStatus, values_callable=lambda x: [e.value for e in x], name="taskstatus"),
+        default=TaskStatus.pending,
+    )
     estimated_minutes: Mapped[int] = mapped_column(Integer, default=30)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -167,7 +170,10 @@ class StudySession(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
     topic_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("topics.id"), nullable=True)
     subject_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
-    status: Mapped[SessionStatus] = mapped_column(Enum(SessionStatus), default=SessionStatus.active)
+    status: Mapped[SessionStatus] = mapped_column(
+        Enum(SessionStatus, values_callable=lambda x: [e.value for e in x], name="sessionstatus"),
+        default=SessionStatus.active,
+    )
     state: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

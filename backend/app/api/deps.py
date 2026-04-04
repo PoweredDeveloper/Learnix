@@ -5,6 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.entities import User
+from app.services.ollama import OllamaClient
+
+
+def get_ollama() -> OllamaClient:
+    return OllamaClient()
 
 
 async def verify_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")) -> None:
