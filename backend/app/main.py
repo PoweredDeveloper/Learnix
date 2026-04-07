@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import cheat_sheet, health, plan, prep, sessions, streak, subjects, tasks, users
+from app.api.routes import cheat_sheet, courses, health, plan, prep, sessions, streak, subjects, tasks, users
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -17,16 +17,25 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Smart Study Assistant API", lifespan=lifespan)
 settings = get_settings()
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins or ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(health.router)
 app.include_router(users.router)
+app.include_router(courses.router)
 app.include_router(subjects.router)
 app.include_router(tasks.router)
 app.include_router(sessions.router)

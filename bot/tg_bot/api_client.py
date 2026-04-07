@@ -13,6 +13,59 @@ class BackendClient:
             "X-Telegram-User-Id": str(telegram_user_id),
         }
 
+    async def get_me(self) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{self.base_url}/users/me", headers=self.headers)
+            r.raise_for_status()
+            return r.json()
+
+    async def ensure_web_session(self) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(f"{self.base_url}/users/me/web-session", headers=self.headers)
+            r.raise_for_status()
+            return r.json()
+
+    async def complete_onboarding(self, answers: dict[str, str]) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                f"{self.base_url}/users/me/onboarding",
+                json={"answers": answers},
+                headers=self.headers,
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def create_course_theme(self, theme: str, days: int = 14) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            r = await client.post(
+                f"{self.base_url}/courses/personalized-theme",
+                json={"theme": theme, "days": days},
+                headers=self.headers,
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def create_course_file(
+        self,
+        filename: str,
+        content: bytes,
+        days: int = 14,
+        subject_name: str | None = None,
+    ) -> dict[str, Any]:
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            files = {"file": (filename, content)}
+            data: dict[str, str] = {"days": str(days)}
+            if subject_name:
+                data["subject_name"] = subject_name
+            r = await client.post(
+                f"{self.base_url}/courses/personalized-file",
+                files=files,
+                data=data,
+                headers={k: v for k, v in self.headers.items()},
+            )
+            r.raise_for_status()
+            return r.json()
+
     async def ensure_user(self, name: str | None, timezone: str = "UTC") -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=60.0) as client:
             r = await client.post(
@@ -35,11 +88,26 @@ class BackendClient:
             r.raise_for_status()
             return r.json()
 
-    async def session_start(self, topic_hint: str | None = None) -> dict[str, Any]:
+    async def list_subjects(self) -> list[dict[str, Any]]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.get(f"{self.base_url}/subjects", headers=self.headers)
+            r.raise_for_status()
+            return r.json()
+
+    async def session_start(
+        self,
+        topic_hint: str | None = None,
+        subject_id: UUID | None = None,
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = {}
+        if topic_hint is not None:
+            body["topic_hint"] = topic_hint
+        if subject_id is not None:
+            body["subject_id"] = str(subject_id)
         async with httpx.AsyncClient(timeout=120.0) as client:
             r = await client.post(
                 f"{self.base_url}/sessions/start",
-                json={"topic_hint": topic_hint},
+                json=body,
                 headers=self.headers,
             )
             r.raise_for_status()

@@ -1,10 +1,12 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_ollama, verify_api_key
+from app.api.deps import authenticate_user, get_db, get_ollama
+from app.api.ollama_http import raise_for_ollama_http
 from app.models.entities import CheatSheet, PrepSource, Subject, User
 from app.schemas.dto import CheatSheetOut
 from app.services.ollama import OllamaClient
@@ -14,28 +16,15 @@ router = APIRouter(prefix="/cheat-sheets", tags=["cheat-sheets"])
 CHEAT_SYSTEM = """You write exam cheat sheets. Return JSON only: {"content_md": string} — Markdown, compact, formulas in plain text."""
 
 
-async def _tid(x_telegram_user_id: int = Header(..., alias="X-Telegram-User-Id")) -> int:
-    return x_telegram_user_id
-
-
-async def _user(db: AsyncSession, telegram_id: int) -> User:
-    r = await db.execute(select(User).where(User.telegram_id == telegram_id))
-    u = r.scalar_one_or_none()
-    if not u:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return u
-
-
-@router.post("/generate", dependencies=[Depends(verify_api_key)])
+@router.post("/generate")
 async def generate_cheat_sheet(
     subject_id: UUID,
     prep_source_id: UUID | None = None,
     density: str = "normal",
-    telegram_user_id: int = Depends(_tid),
+    user: User = Depends(authenticate_user),
     db: AsyncSession = Depends(get_db),
     ollama: OllamaClient = Depends(get_ollama),
 ) -> CheatSheetOut:
-    user = await _user(db, telegram_user_id)
     subj = await db.get(Subject, subject_id)
     if not subj or subj.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")
@@ -45,10 +34,15 @@ async def generate_cheat_sheet(
         ps = await db.get(PrepSource, prep_source_id)
         if not ps or ps.user_id != user.id:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prep not found")
+        if ps.subject_id != subj.id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Prep source does not belong to this subject")
         source_text = ps.extracted_text[:20_000]
 
     user_prompt = f"Subject: {subj.name}. Density: {density}.\n\nSource excerpt:\n{source_text or 'No source; infer general outline.'}"
-    data = await ollama.chat_json(CHEAT_SYSTEM, user_prompt)
+    try:
+        data = await ollama.chat_json(CHEAT_SYSTEM, user_prompt)
+    except httpx.HTTPError as e:
+        raise_for_ollama_http(e)
     md = str(data.get("content_md", "# " + subj.name))
 
     cs = CheatSheet(
@@ -64,13 +58,12 @@ async def generate_cheat_sheet(
     return CheatSheetOut.model_validate(cs)
 
 
-@router.get("/latest/{subject_id}", dependencies=[Depends(verify_api_key)])
+@router.get("/latest/{subject_id}")
 async def latest_sheet(
     subject_id: UUID,
-    telegram_user_id: int = Depends(_tid),
+    user: User = Depends(authenticate_user),
     db: AsyncSession = Depends(get_db),
 ) -> CheatSheetOut | dict:
-    user = await _user(db, telegram_user_id)
     subj = await db.get(Subject, subject_id)
     if not subj or subj.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subject not found")

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,22 +20,34 @@ async def verify_api_key(x_api_key: str | None = Header(None, alias="X-API-Key")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
 
-async def get_telegram_user(
-    telegram_user_id: int = Header(..., alias="X-Telegram-User-Id"),
+async def authenticate_user(
     db: AsyncSession = Depends(get_db),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    x_telegram_user_id: str | None = Header(None, alias="X-Telegram-User-Id"),
+    x_web_session_key: str | None = Header(None, alias="X-Web-Session-Key"),
 ) -> User:
-    r = await db.execute(select(User).where(User.telegram_id == telegram_user_id))
-    user = r.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return user
+    """Accepts bot credentials (API key + Telegram id) or browser web session key."""
+    settings = get_settings()
+    raw_key = (x_web_session_key or "").strip()
+    if raw_key:
+        r = await db.execute(select(User).where(User.web_session_token == raw_key))
+        user = r.scalar_one_or_none()
+        now = datetime.now(timezone.utc)
+        if not user or not user.web_session_expires_at or user.web_session_expires_at <= now:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired web session",
+            )
+        return user
 
+    if x_api_key and x_api_key == settings.api_secret and x_telegram_user_id is not None:
+        try:
+            tid = int(x_telegram_user_id)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        ur = await db.execute(select(User).where(User.telegram_id == tid))
+        u = ur.scalar_one_or_none()
+        if u:
+            return u
 
-async def get_optional_user_by_header(
-    telegram_user_id: int | None = Header(None, alias="X-Telegram-User-Id"),
-    db: AsyncSession = Depends(get_db),
-) -> User | None:
-    if telegram_user_id is None:
-        return None
-    r = await db.execute(select(User).where(User.telegram_id == telegram_user_id))
-    return r.scalar_one_or_none()
+    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")

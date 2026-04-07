@@ -20,8 +20,22 @@ class UserOut(BaseModel):
     streak_current: int
     streak_best: int
     last_streak_eligible_date: date | None
+    onboarding_completed: bool = False
+    learning_profile: dict | None = None
+    web_session_expires_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class WebSessionOut(BaseModel):
+    web_key: str
+    expires_at: datetime
+
+
+class OnboardingCompleteIn(BaseModel):
+    """Answers from the learning-style questionnaire (flexible keys)."""
+
+    answers: dict[str, str] = Field(default_factory=dict)
 
 
 class SubjectCreate(BaseModel):
@@ -60,6 +74,7 @@ class SessionStartIn(BaseModel):
 class SessionOut(BaseModel):
     session_id: UUID
     message: str
+    meta: dict | None = None
 
 
 class AnswerIn(BaseModel):
@@ -95,6 +110,12 @@ class PlanGenerateIn(BaseModel):
     topic_names: list[str] = Field(default_factory=list)
     start_date: date
     end_date: date
+
+
+class PersonalizedThemeIn(BaseModel):
+    theme: str = Field(..., min_length=2, max_length=500)
+    days: int = Field(default=14, ge=3, le=365)
+    course_name: str | None = Field(default=None, max_length=255)
 
 
 class TodayPlanOut(BaseModel):

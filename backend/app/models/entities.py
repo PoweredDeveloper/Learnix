@@ -42,6 +42,12 @@ class User(Base):
     streak_current: Mapped[int] = mapped_column(Integer, default=0)
     streak_best: Mapped[int] = mapped_column(Integer, default=0)
     last_streak_eligible_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    onboarding_completed: Mapped[bool] = mapped_column(Boolean, default=False)
+    learning_profile: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    web_session_token: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    web_session_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

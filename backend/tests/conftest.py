@@ -47,12 +47,13 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 def mock_ollama() -> MockOllamaClient:
     m = MockOllamaClient()
     m.response_queue = [
-        {"explanation": "Short intro.", "task": "What is 2+2?", "rubric": "Answer 4."},
+        {"theory": "Short intro.", "examples": [], "topic_title": "Arithmetic"},
+        {"task": "$$2+2$$", "rubric": "Answer 4."},
         {
             "correct": True,
             "feedback": "Correct!",
             "next_task": None,
-            "session_complete": True,
+            "session_complete": False,
         },
     ]
     return m

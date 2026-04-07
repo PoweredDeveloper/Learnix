@@ -21,7 +21,7 @@ Telegram-first study planner with a **FastAPI** backend and **React** web UI. Us
 | ORM / DB         | **SQLAlchemy 2.x** + **Alembic**                              | Async engine (`asyncpg`) recommended; migrations required                                   |
 | DB               | **PostgreSQL**                                                | Dev: Docker Compose                                                                         |
 | Frontend         | **React** (Vite)                                              | TypeScript; fetch or TanStack Query to API                                                  |
-| AI               | **Ollama HTTP API**                                           | `POST /api/chat` or `/api/generate`; base URL + model via env; **no** vendor SDK            |
+| AI               | **Ollama HTTP API**                                           | **Local:** `POST /api/chat`. **Cloud:** `POST https://ollama.com/api/chat` + Bearer key ([docs](https://docs.ollama.com/cloud)); `OLLAMA_MODE` + env; **no** vendor SDK |
 | Tests            | **pytest** + **httpx** `AsyncClient` / Starlette `TestClient` | Unit + API integration; **Playwright** (or Cypress) for web e2e                             |
 | E2E (full stack) | **Docker Compose**                                            | `api` + `db` + optional `ollama`; smoke script or Playwright against `web` + `api`          |
 
@@ -160,7 +160,9 @@ AGENT.md
 
 ## Ollama
 
-- Env: `OLLAMA_BASE_URL`, `OLLAMA_MODEL` (e.g. `llama3.2`, `qwen2.5`).
+- Env: `OLLAMA_MODE` = `local` \| `cloud`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, and `OLLAMA_API_KEY` (required for cloud).
+- **Local:** daemon default `http://localhost:11434`, native `/api/chat`.
+- **Cloud:** host `https://ollama.com` (default if mode is `cloud` and URL is still local), same `/api/chat` JSON as local, `Authorization: Bearer <OLLAMA_API_KEY>`. Trailing `/v1` in `OLLAMA_BASE_URL` is stripped for compatibility.
 - All generation goes through **one** backend module; bot never talks to Ollama directly.
 - Tests: default to **mock**; optional `OLLAMA_E2E=1` locally for real calls.
 

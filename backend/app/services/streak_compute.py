@@ -1,6 +1,9 @@
+import logging
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+_log = logging.getLogger(__name__)
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +13,16 @@ from app.models.entities import StudyLog, StudyPlan, StudyTask, TaskStatus, User
 from app.services.streak import apply_streak_update, effective_quota, is_streak_eligible, local_today
 
 
+def _safe_tz(tz_name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        _log.warning("Invalid timezone %r, falling back to UTC", tz_name)
+        return ZoneInfo("UTC")
+
+
 def _local_day_utc_bounds(today_local: date, tz_name: str) -> tuple[datetime, datetime]:
-    tz = ZoneInfo(tz_name)
+    tz = _safe_tz(tz_name)
     start_local = datetime.combine(today_local, datetime.min.time(), tzinfo=tz)
     end_local = start_local + timedelta(days=1)
     return start_local.astimezone(timezone.utc), end_local.astimezone(timezone.utc)

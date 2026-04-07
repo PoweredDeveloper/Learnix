@@ -1,10 +1,10 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, verify_api_key
+from app.api.deps import authenticate_user, get_db
 from app.models.entities import StudyPlan, StudyTask, TaskStatus, User
 from app.services.streak_compute import recompute_user_streak
 from app.schemas.dto import TaskOut, TaskUpdate
@@ -13,24 +13,11 @@ from app.services.streak import local_today
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
-async def _tid(x_telegram_user_id: int = Header(..., alias="X-Telegram-User-Id")) -> int:
-    return x_telegram_user_id
-
-
-async def _user(db: AsyncSession, telegram_id: int) -> User:
-    r = await db.execute(select(User).where(User.telegram_id == telegram_id))
-    u = r.scalar_one_or_none()
-    if not u:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return u
-
-
-@router.get("/today", dependencies=[Depends(verify_api_key)])
+@router.get("/today")
 async def tasks_today(
-    telegram_user_id: int = Depends(_tid),
+    user: User = Depends(authenticate_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TaskOut]:
-    user = await _user(db, telegram_user_id)
     today = local_today(user.timezone or "UTC")
     r = await db.execute(
         select(StudyTask)
@@ -46,16 +33,14 @@ async def tasks_today(
     return [TaskOut.model_validate(t) for t in r.scalars().all()]
 
 
-@router.patch("/{task_id}", dependencies=[Depends(verify_api_key)])
+@router.patch("/{task_id}")
 async def update_task(
     task_id: UUID,
     body: TaskUpdate,
-    telegram_user_id: int = Depends(_tid),
+    user: User = Depends(authenticate_user),
     db: AsyncSession = Depends(get_db),
 ) -> TaskOut:
     from datetime import datetime, timezone
-
-    user = await _user(db, telegram_user_id)
     task = await db.get(StudyTask, task_id)
     if not task:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
@@ -66,7 +51,7 @@ async def update_task(
     task.status = body.status
     if body.status == TaskStatus.done:
         task.completed_at = datetime.now(timezone.utc)
-    elif body.status == TaskStatus.pending:
+    else:
         task.completed_at = None
     await db.commit()
     await db.refresh(task)

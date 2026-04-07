@@ -1,11 +1,14 @@
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import get_settings
 
 
 def local_today(timezone_name: str) -> date:
-    tz = ZoneInfo(timezone_name)
+    try:
+        tz = ZoneInfo(timezone_name)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("UTC")
     return datetime.now(tz).date()
 
 

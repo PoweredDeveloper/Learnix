@@ -59,7 +59,8 @@ When working on this repository, **read `PLAN.md` first**. This file defines **h
 
 ## Commands agents should run (when code exists)
 
-- Backend: `pytest` from `backend/` (or repo root if configured).
+- Backend: `uv sync --group dev && uv run pytest` from `backend/`.
+- Bot: `uv sync --group dev && uv run pytest` from `bot/`.
 - Frontend: `npm test` / `npm run lint` / `npm run build` as defined in `package.json`.
 - E2E: `npx playwright test` (after `playwright install`).
 
@@ -70,7 +71,7 @@ Fix failures before declaring work complete.
 ## Config / secrets
 
 - Use **environment variables** (`.env.example` checked in; `.env` gitignored).
-- Bot token, DB URL, API service secret, `OLLAMA_BASE_URL`, `OLLAMA_MODEL` — document each in `.env.example`.
+- Bot token, DB URL, API service secret, optional `LMS_BACKEND_API_KEY`, `OLLAMA_MODE` (`local` \| `cloud`), `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` (required for cloud), `OLLAMA_MODEL` — document each in `.env.example`.
 
 ---
 

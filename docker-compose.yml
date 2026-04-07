@@ -1,3 +1,6 @@
+# Stack: db + api + web (Caddy + static UI, proxies /api → api) + bot.
+# Set `TELEGRAM_BOT_TOKEN` in `.env` (project root) or the bot container will exit on startup.
+
 services:
   db:
     image: postgres:16-alpine
@@ -7,9 +10,26 @@ services:
       POSTGRES_DB: sethack
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
 
   api:
     build:
@@ -17,16 +37,41 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@db:5432/sethack
-      API_SECRET: dev-secret-change-me
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
-      OLLAMA_MODEL: llama3.2
-      CORS_ORIGINS: http://localhost:5173
+      API_SECRET: ${API_SECRET:-dev-secret-change-me}
+      LMS_BACKEND_API_KEY: ${LMS_BACKEND_API_KEY:-}
+      OLLAMA_MODE: ${OLLAMA_MODE:-local}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      WEB_SESSION_TTL_DAYS: ${WEB_SESSION_TTL_DAYS:-3}
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
     command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_SECRET: ${VITE_API_SECRET:-dev-secret-change-me}
+    environment:
+      WEB_ADMIN_PASSWORD: ${WEB_ADMIN_PASSWORD:-}
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
 
   bot:
     build:
@@ -35,11 +80,13 @@ services:
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       API_BASE_URL: http://api:8000
-      API_SECRET: dev-secret-change-me
+      API_SECRET: ${API_SECRET:-dev-secret-change-me}
+      # Host URL for the `web` service (port 5173 → Caddy). Override with HTTPS (e.g. ngrok) for Telegram on a phone.
+      WEB_PUBLIC_BASE_URL: ${WEB_PUBLIC_BASE_URL:-http://localhost:5173}
     depends_on:
-      - api
-    profiles:
-      - bot
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:
+  pgadmin_data:

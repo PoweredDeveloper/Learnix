@@ -1,12 +1,10 @@
 import uuid
 from pathlib import Path
-from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Header, HTTPException, UploadFile, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, verify_api_key
+from app.api.deps import authenticate_user, get_db
 from app.core.config import get_settings
 from app.models.entities import PrepSource, Subject, User
 from app.services.ingestion import extract_text_from_pdf
@@ -14,27 +12,14 @@ from app.services.ingestion import extract_text_from_pdf
 router = APIRouter(prefix="/prep", tags=["prep"])
 
 
-async def _tid(x_telegram_user_id: int = Header(..., alias="X-Telegram-User-Id")) -> int:
-    return x_telegram_user_id
-
-
-async def _user(db: AsyncSession, telegram_id: int) -> User:
-    r = await db.execute(select(User).where(User.telegram_id == telegram_id))
-    u = r.scalar_one_or_none()
-    if not u:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return u
-
-
-@router.post("/upload", dependencies=[Depends(verify_api_key)])
+@router.post("/upload")
 async def upload_prep(
-    subject_id: UUID | None = None,
+    subject_id: uuid.UUID | None = None,
     file: UploadFile = File(...),
-    telegram_user_id: int = Depends(_tid),
+    user: User = Depends(authenticate_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     settings = get_settings()
-    user = await _user(db, telegram_user_id)
     if subject_id:
         s = await db.get(Subject, subject_id)
         if not s or s.user_id != user.id:
@@ -50,7 +35,10 @@ async def upload_prep(
 
     text = ""
     if ext == ".pdf":
-        text = extract_text_from_pdf(dest)
+        try:
+            text = extract_text_from_pdf(dest)
+        except Exception:
+            text = ""
     elif ext in (".md", ".txt"):
         text = content.decode("utf-8", errors="replace")
 
