@@ -1,10 +1,32 @@
-import AdminDashboard from "./AdminDashboard";
-import UserDashboard from "./UserDashboard";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Dashboard from "@/pages/Dashboard";
+import CreateCourse from "@/pages/CreateCourse";
+import CourseView from "@/pages/CourseView";
+import LessonView from "@/pages/LessonView";
+import AdminDashboard from "@/AdminDashboard";
+import Layout from "@/components/Layout";
+import { useEffect } from "react";
+import { captureKeyFromQuery } from "@/api";
 
 export default function App() {
-  const path = window.location.pathname || "/";
-  if (path === "/admin" || path.startsWith("/admin/")) {
-    return <AdminDashboard />;
-  }
-  return <UserDashboard />;
+  useEffect(() => {
+    captureKeyFromQuery();
+  }, []);
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/create-course" element={<CreateCourse />} />
+          <Route path="/course/:courseId" element={<CourseView />} />
+          <Route
+            path="/course/:courseId/lesson/:lessonId"
+            element={<LessonView />}
+          />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
 }

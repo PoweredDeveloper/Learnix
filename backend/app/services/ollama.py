@@ -12,7 +12,19 @@ def _extract_json_object(text: str) -> dict[str, Any]:
     m = re.search(r"\{[\s\S]*\}", text)
     if not m:
         raise ValueError("No JSON object in model response")
-    return json.loads(m.group())
+    raw = m.group()
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        pass
+    # LLMs often emit LaTeX backslashes (\frac, \int) that break JSON.
+    # Escape lone backslashes that aren't valid JSON escape sequences.
+    fixed = re.sub(
+        r'\\(?!["\\/bfnrtu])',
+        r"\\\\",
+        raw,
+    )
+    return json.loads(fixed)
 
 
 def _normalize_ollama_http_base(url: str) -> str:

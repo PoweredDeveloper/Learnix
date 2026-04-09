@@ -201,3 +201,80 @@ class SessionEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     session: Mapped["StudySession"] = relationship(back_populates="events")
+
+
+class CourseStatus(str, enum.Enum):
+    generating = "generating"
+    ready = "ready"
+    archived = "archived"
+
+
+class LessonType(str, enum.Enum):
+    theory = "theory"
+    practice = "practice"
+    exam = "exam"
+
+
+class LessonStatus(str, enum.Enum):
+    locked = "locked"
+    active = "active"
+    completed = "completed"
+
+
+class Course(Base):
+    __tablename__ = "courses"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    subject_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("subjects.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str] = mapped_column(Text, default="")
+    duration_label: Mapped[str] = mapped_column(String(32), default="1w")
+    status: Mapped[CourseStatus] = mapped_column(
+        Enum(CourseStatus, values_callable=lambda x: [e.value for e in x], name="coursestatus", create_type=False),
+        default=CourseStatus.generating,
+    )
+    syllabus_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    total_lessons: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    lessons: Mapped[list["Lesson"]] = relationship(back_populates="course", order_by="Lesson.sort_order")
+
+
+class Lesson(Base):
+    __tablename__ = "lessons"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    course_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("courses.id"), index=True)
+    section_index: Mapped[int] = mapped_column(Integer, default=0)
+    lesson_index: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str] = mapped_column(String(512))
+    lesson_type: Mapped[LessonType] = mapped_column(
+        Enum(LessonType, values_callable=lambda x: [e.value for e in x], name="lessontype", create_type=False),
+        default=LessonType.theory,
+    )
+    content_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    status: Mapped[LessonStatus] = mapped_column(
+        Enum(LessonStatus, values_callable=lambda x: [e.value for e in x], name="lessonstatus", create_type=False),
+        default=LessonStatus.locked,
+    )
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    course: Mapped["Course"] = relationship(back_populates="lessons")
+    chats: Mapped[list["LessonChat"]] = relationship(back_populates="lesson")
+
+
+class LessonChat(Base):
+    __tablename__ = "lesson_chats"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lesson_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("lessons.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    messages: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    lesson: Mapped["Lesson"] = relationship(back_populates="chats")

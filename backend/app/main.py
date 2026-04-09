@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import cheat_sheet, courses, health, plan, prep, sessions, streak, subjects, tasks, users
+from app.api.routes import cheat_sheet, courses, health, lessons, plan, prep, sessions, streak, subjects, tasks, users
 from app.core.config import get_settings
 from app.db.session import engine
 
@@ -42,6 +42,7 @@ app.include_router(sessions.router)
 app.include_router(streak.router)
 app.include_router(plan.router)
 app.include_router(prep.router)
+app.include_router(lessons.router)
 app.include_router(cheat_sheet.router)
 
 

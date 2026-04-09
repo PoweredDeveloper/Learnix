@@ -120,3 +120,40 @@ class PersonalizedThemeIn(BaseModel):
 
 class TodayPlanOut(BaseModel):
     tasks: list[TaskOut]
+
+
+class CourseCreateIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(default="", max_length=2000)
+    duration_label: str = Field(default="1w", max_length=32)
+
+
+class CourseOut(BaseModel):
+    id: UUID
+    name: str
+    description: str
+    duration_label: str
+    status: str
+    total_lessons: int
+    completed_lessons: int = 0
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LessonOut(BaseModel):
+    id: UUID
+    course_id: UUID
+    section_index: int
+    lesson_index: int
+    title: str
+    lesson_type: str
+    status: str
+    sort_order: int
+    content: dict | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class LessonChatIn(BaseModel):
+    message: str = Field(..., min_length=1, max_length=8000)
