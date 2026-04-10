@@ -6,8 +6,23 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.entities import Course, CourseStatus, Lesson, LessonChat, LessonStatus, LessonType
+from app.models.entities import Course, CourseStatus, Lesson, LessonChat, LessonStatus, LessonType, StudyLog, User
 from app.services.ollama import OllamaClient
+from app.services.streak import local_today
+
+
+def _estimated_lesson_study_minutes(lesson: Lesson) -> int:
+    raw = lesson.content_json or {}
+    em = raw.get("estimated_minutes")
+    if isinstance(em, (int, float)) and em > 0:
+        return min(int(em), 120)
+    if lesson.lesson_type == LessonType.theory:
+        return 10
+    if lesson.lesson_type == LessonType.practice:
+        return 15
+    if lesson.lesson_type == LessonType.exam:
+        return 20
+    return 12
 
 SYLLABUS_SYSTEM = """You are an expert course-curriculum designer.
 Given a topic, description, and desired duration, produce a structured course syllabus as JSON.
@@ -43,6 +58,7 @@ You have access to the lesson content below. When the student asks a question:
 - Explain concepts clearly with examples.
 - Answer follow-up questions patiently.
 - Use LaTeX ($...$ inline, $$...$$ display) when writing math.
+- If the user asks for grading JSON (boolean "correct" and string "feedback"), make the outer response {{"reply": "<string>"}} where the inner string is valid JSON only: double quotes, lowercase true/false. Put math in "feedback" as readable LaTeX (e.g. $x=2\\\\sin\\\\theta$), never one character per line. Do not use Python dict syntax with single quotes.
 
 Lesson content:
 {lesson_content}
@@ -60,6 +76,8 @@ async def generate_course(
     name: str,
     description: str,
     duration_label: str,
+    file_text: str | None = None,
+    on_progress: Any = None,
 ) -> Course:
     course = Course(
         user_id=user_id,
@@ -71,27 +89,45 @@ async def generate_course(
     db.add(course)
     await db.flush()
 
+    async def _log(msg: str) -> None:
+        if on_progress:
+            await on_progress(msg)
+
+    await _log("Generating course syllabus...")
+
+    user_prompt = f"Topic: {name}\nDescription: {description}\nDuration: {duration_label}"
+    if file_text:
+        user_prompt += f"\n\nReference material (use this as the primary source):\n{file_text[:15_000]}"
+
     syllabus = await ollama.chat_json(
         system=SYLLABUS_SYSTEM,
-        user=f"Topic: {name}\nDescription: {description}\nDuration: {duration_label}",
+        user=user_prompt,
     )
+
+    sections = syllabus.get("sections", [])
+    total_lessons = sum(len(s.get("lessons", [])) for s in sections)
+    await _log(f"Syllabus ready — {len(sections)} sections, {total_lessons} lessons")
 
     sort_order = 0
     first_lesson = True
-    for sec_i, section in enumerate(syllabus.get("sections", [])):
+    for sec_i, section in enumerate(sections):
+        sec_title = section.get("title", f"Section {sec_i + 1}")
         for les_i, les in enumerate(section.get("lessons", [])):
+            les_title = les.get("title", f"Lesson {les_i + 1}")
             raw_type = les.get("type", "theory")
             try:
                 lesson_type = LessonType(raw_type)
             except ValueError:
                 lesson_type = LessonType.theory
 
+            await _log(f"Generating {lesson_type.value}: {les_title}")
+
             content = await ollama.chat_json(
                 system=LESSON_CONTENT_SYSTEM,
                 user=(
                     f"Course: {name}\n"
-                    f"Section: {section['title']}\n"
-                    f"Lesson title: {les['title']}\n"
+                    f"Section: {sec_title}\n"
+                    f"Lesson title: {les_title}\n"
                     f"Lesson type: {lesson_type.value}"
                 ),
             )
@@ -100,7 +136,7 @@ async def generate_course(
                 course_id=course.id,
                 section_index=sec_i,
                 lesson_index=les_i,
-                title=les["title"],
+                title=les_title,
                 lesson_type=lesson_type,
                 content_json=content,
                 status=LessonStatus.active if first_lesson else LessonStatus.locked,
@@ -110,10 +146,13 @@ async def generate_course(
             first_lesson = False
             sort_order += 1
 
+            await _log(f"✓ {les_title} ({sort_order}/{total_lessons})")
+
     course.syllabus_json = syllabus
     course.total_lessons = sort_order
     course.status = CourseStatus.ready
     await db.flush()
+    await _log("Course ready!")
     return course
 
 
@@ -181,7 +220,23 @@ async def complete_lesson(
     if not lesson:
         raise ValueError("Lesson not found")
 
+    prior_status = lesson.status
     lesson.status = LessonStatus.completed
+
+    if prior_status != LessonStatus.completed:
+        user = await db.get(User, user_id)
+        tz = (user.timezone if user and user.timezone else None) or "UTC"
+        log_date = local_today(tz)
+        minutes = _estimated_lesson_study_minutes(lesson)
+        db.add(
+            StudyLog(
+                user_id=user_id,
+                topic_id=None,
+                status="web_lesson",
+                time_spent=minutes,
+                log_date=log_date,
+            )
+        )
 
     next_result = await db.execute(
         select(Lesson)
@@ -195,6 +250,44 @@ async def complete_lesson(
 
     await db.flush()
     return lesson
+
+
+async def _resolve_lesson_chat_row(
+    db: AsyncSession,
+    lesson_id: UUID,
+    user_id: UUID,
+) -> LessonChat | None:
+    """
+    One row per (lesson_id, user_id). Merges duplicate rows (no DB unique before migration),
+    dedupes messages by (role, content, ts).
+    """
+    result = await db.execute(
+        select(LessonChat)
+        .where(LessonChat.lesson_id == lesson_id, LessonChat.user_id == user_id)
+        .order_by(LessonChat.updated_at.desc(), LessonChat.id.desc())
+    )
+    rows = list(result.scalars().all())
+    if not rows:
+        return None
+    if len(rows) == 1:
+        return rows[0]
+    primary = rows[0]
+    merged: list[dict[str, Any]] = []
+    for c in sorted(rows, key=lambda x: (x.created_at, x.id)):
+        merged.extend(list(c.messages or []))
+    seen: set[tuple[str, str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    for m in merged:
+        key = (str(m.get("role", "")), str(m.get("content", "")), str(m.get("ts", "")))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(m)
+    primary.messages = deduped
+    for extra in rows[1:]:
+        await db.delete(extra)
+    await db.flush()
+    return primary
 
 
 async def chat_with_lesson(
@@ -212,13 +305,7 @@ async def chat_with_lesson(
     if not lesson:
         raise ValueError("Lesson not found")
 
-    chat_result = await db.execute(
-        select(LessonChat).where(
-            LessonChat.lesson_id == lesson_id,
-            LessonChat.user_id == user_id,
-        )
-    )
-    chat = chat_result.scalar_one_or_none()
+    chat = await _resolve_lesson_chat_row(db, lesson_id, user_id)
     if not chat:
         chat = LessonChat(lesson_id=lesson_id, user_id=user_id, messages=[])
         db.add(chat)
@@ -253,13 +340,7 @@ async def get_lesson_chat(
     lesson_id: UUID,
     user_id: UUID,
 ) -> list[dict[str, Any]]:
-    result = await db.execute(
-        select(LessonChat).where(
-            LessonChat.lesson_id == lesson_id,
-            LessonChat.user_id == user_id,
-        )
-    )
-    chat = result.scalar_one_or_none()
+    chat = await _resolve_lesson_chat_row(db, lesson_id, user_id)
     if not chat:
         return []
     return list(chat.messages)

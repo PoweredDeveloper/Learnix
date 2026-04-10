@@ -69,3 +69,18 @@ export type Me = {
   onboarding_completed: boolean;
   web_session_expires_at: string | null;
 };
+
+export type CustomReminder = {
+  id: string;
+  date: string;
+  time: string;
+  message: string;
+  enabled: boolean;
+};
+
+export type NotificationSettings = {
+  timezone: string;
+  daily_enabled: boolean;
+  daily_time: string;
+  custom_reminders: CustomReminder[];
+};

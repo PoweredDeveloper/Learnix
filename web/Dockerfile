@@ -1,5 +1,9 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+# More resilient to slow registry (same class of issue as PyPI timeouts in Docker)
+ENV NPM_CONFIG_FETCH_RETRIES=5 \
+    NPM_CONFIG_FETCH_RETRY_MINTIMEOUT=20000 \
+    NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT=120000
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .

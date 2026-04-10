@@ -8,7 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import authenticate_user, get_db, verify_api_key
 from app.core.config import get_settings
 from app.models.entities import User
-from app.schemas.dto import OnboardingCompleteIn, UserEnsureIn, UserOut, WebSessionOut
+from app.schemas.dto import (
+    NotificationPreferencesIn,
+    OnboardingCompleteIn,
+    UserEnsureIn,
+    UserOut,
+    WebSessionOut,
+)
+from app.services.notification_dispatch import (
+    merge_notification_prefs,
+    normalize_custom_reminders,
+    normalize_time,
+    sanitize_prefs_for_client,
+)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -42,6 +54,43 @@ async def ensure_user(body: UserEnsureIn, db: AsyncSession = Depends(get_db)) ->
 @router.get("/me")
 async def me(user: User = Depends(authenticate_user)) -> UserOut:
     return UserOut.model_validate(user)
+
+
+@router.get("/me/notifications")
+async def get_notification_settings(user: User = Depends(authenticate_user)) -> dict:
+    prefs = merge_notification_prefs(user.notification_preferences)
+    return {"timezone": user.timezone, **sanitize_prefs_for_client(prefs)}
+
+
+@router.put("/me/notifications")
+async def put_notification_settings(
+    body: NotificationPreferencesIn,
+    user: User = Depends(authenticate_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    cur = merge_notification_prefs(user.notification_preferences)
+    cur["daily_enabled"] = body.daily_enabled
+    cur["daily_time"] = normalize_time(body.daily_time)
+    if body.timezone is not None:
+        tz = body.timezone.strip()[:64] or "UTC"
+        user.timezone = tz
+    old_by_id = {
+        str(c.get("id")): c
+        for c in cur.get("custom_reminders", [])
+        if isinstance(c, dict) and c.get("id")
+    }
+    merged_custom: list = []
+    for item in normalize_custom_reminders(body.custom_reminders):
+        oid = str(item["id"])
+        if oid in old_by_id:
+            item["last_fired_local_date"] = old_by_id[oid].get("last_fired_local_date")
+        merged_custom.append(item)
+    cur["custom_reminders"] = merged_custom
+    user.notification_preferences = cur
+    await db.commit()
+    await db.refresh(user)
+    prefs = merge_notification_prefs(user.notification_preferences)
+    return {"timezone": user.timezone, **sanitize_prefs_for_client(prefs)}
 
 
 @router.post("/me/web-session", dependencies=[Depends(verify_api_key)])

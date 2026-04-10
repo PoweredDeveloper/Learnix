@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev \
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
+    UV_HTTP_TIMEOUT=300 \
     PATH="/app/.venv/bin:$PATH"
 
 COPY pyproject.toml uv.lock ./

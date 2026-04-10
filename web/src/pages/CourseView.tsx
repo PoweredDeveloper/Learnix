@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Trash2,
 } from "lucide-react";
 
 type CourseData = Course & { lessons: Lesson[] };
@@ -52,6 +53,7 @@ export default function CourseView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!courseId) return;
@@ -188,14 +190,37 @@ export default function CourseView() {
 
       {/* Main content */}
       <div className="flex-1 min-w-0">
-        <div className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-6 text-center">
+        <div className="rounded-lg border border-border/50 bg-card/60 backdrop-blur-sm p-6">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div className="min-w-0 flex-1 text-left">
+              <h2 className="text-xl font-semibold">{data.name}</h2>
+              {data.description && (
+                <p className="text-muted-foreground mt-2 text-sm sm:text-base">
+                  {data.description}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={async () => {
+                if (!courseId || !confirm(`Delete "${data.name}"? This cannot be undone.`)) return;
+                setDeleting(true);
+                try {
+                  await api.delete(`/web-courses/${courseId}`);
+                  navigate("/");
+                } catch {
+                  setDeleting(false);
+                }
+              }}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {deleting ? "…" : "Delete"}
+            </button>
+          </div>
+          <div className="text-center">
           <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-xl font-semibold mb-2">{data.name}</h2>
-          {data.description && (
-            <p className="text-muted-foreground mb-4 max-w-lg mx-auto">
-              {data.description}
-            </p>
-          )}
           {activeLesson ? (
             <Button
               onClick={() =>
@@ -214,6 +239,7 @@ export default function CourseView() {
               Select a lesson from the sidebar to begin.
             </p>
           )}
+          </div>
         </div>
       </div>
 

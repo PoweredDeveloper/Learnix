@@ -13,7 +13,9 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -47,6 +49,9 @@ class User(Base):
     web_session_token: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     web_session_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    notification_preferences: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -269,6 +274,7 @@ class Lesson(Base):
 
 class LessonChat(Base):
     __tablename__ = "lesson_chats"
+    __table_args__ = (UniqueConstraint("lesson_id", "user_id", name="uq_lesson_chats_lesson_user"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     lesson_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("lessons.id"), index=True)

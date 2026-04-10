@@ -64,6 +64,13 @@ export const api = {
       body: JSON.stringify(body),
     }).then((r) => handleResponse<T>(r)),
 
+  put: <T>(path: string, body: unknown) =>
+    fetch(`${API_PREFIX}${path}`, {
+      method: "PUT",
+      headers: jsonHeaders(),
+      body: JSON.stringify(body),
+    }).then((r) => handleResponse<T>(r)),
+
   delete: <T>(path: string) =>
     fetch(`${API_PREFIX}${path}`, {
       method: "DELETE",

@@ -1,12 +1,19 @@
+import asyncio
+import json
+import uuid as _uuid
+from datetime import datetime
+from pathlib import Path
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import authenticate_user, get_db, get_ollama
 from app.api.ollama_http import raise_for_ollama_http
+from app.core.config import get_settings
 from app.models.entities import Course, CourseStatus, Lesson, User
 from app.schemas.dto import CourseCreateIn, CourseOut, LessonChatIn, LessonOut
 from app.services.course_gen import (
@@ -16,6 +23,7 @@ from app.services.course_gen import (
     get_course_with_progress,
     get_lesson_chat,
 )
+from app.services.ingestion import extract_text_from_pdf
 from app.services.ollama import OllamaClient
 
 router = APIRouter(prefix="/web-courses", tags=["web-courses"])
@@ -82,6 +90,7 @@ async def create_course(
             name=body.name,
             description=body.description,
             duration_label=body.duration_label,
+            file_text=body.file_text,
         )
     except httpx.HTTPError as e:
         raise_for_ollama_http(e)
@@ -94,6 +103,94 @@ async def create_course(
     data = await get_course_with_progress(db, course.id, user.id)
     await db.commit()
     return data
+
+
+@router.post("/create-stream")
+async def create_course_stream(
+    body: CourseCreateIn,
+    user: User = Depends(authenticate_user),
+    db: AsyncSession = Depends(get_db),
+    ollama: OllamaClient = Depends(get_ollama),
+):
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    async def on_progress(msg: str) -> None:
+        await queue.put(msg)
+
+    async def _generate() -> dict:
+        try:
+            course = await generate_course(
+                db=db,
+                ollama=ollama,
+                user_id=user.id,
+                name=body.name,
+                description=body.description,
+                duration_label=body.duration_label,
+                file_text=body.file_text,
+                on_progress=on_progress,
+            )
+            data = await get_course_with_progress(db, course.id, user.id)
+            await db.commit()
+            return data
+        except Exception as exc:
+            await queue.put(f"ERROR: {exc}")
+            return {"error": str(exc)}
+        finally:
+            await queue.put(None)
+
+    def _json_default(obj: object) -> str:
+        if isinstance(obj, (UUID, _uuid.UUID)):
+            return str(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Not serializable: {type(obj)}")
+
+    def _dumps(obj: object) -> str:
+        return json.dumps(obj, default=_json_default)
+
+    async def event_stream_sse():
+        task = asyncio.create_task(_generate())
+        while True:
+            msg = await queue.get()
+            if msg is None:
+                result = await task
+                yield f"data: {_dumps({'done': True, 'result': result})}\n\n"
+                break
+            yield f"data: {_dumps({'log': msg})}\n\n"
+
+    return StreamingResponse(event_stream_sse(), media_type="text/event-stream")
+
+
+@router.post("/upload-file")
+async def upload_course_file(
+    file: UploadFile = File(...),
+    user: User = Depends(authenticate_user),
+) -> dict:
+    """Upload a file and return extracted text for course creation."""
+    settings = get_settings()
+    upload_dir = Path(settings.upload_dir)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = Path(file.filename or "doc").suffix.lower() or ".bin"
+    fname = f"{_uuid.uuid4()}{ext}"
+    dest = upload_dir / fname
+    content = await file.read()
+    dest.write_bytes(content)
+
+    text = ""
+    if ext == ".pdf":
+        try:
+            text = extract_text_from_pdf(dest)
+        except Exception:
+            text = ""
+    elif ext in (".md", ".txt"):
+        text = content.decode("utf-8", errors="replace")
+
+    return {
+        "filename": file.filename,
+        "extracted_chars": len(text),
+        "text": text[:50_000],
+    }
 
 
 @router.delete("/{course_id}")
@@ -205,4 +302,5 @@ async def get_chat_messages(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     messages = await get_lesson_chat(db, lesson_id, user.id)
+    await db.commit()
     return {"messages": messages}

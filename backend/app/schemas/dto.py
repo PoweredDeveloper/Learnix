@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -36,6 +37,13 @@ class OnboardingCompleteIn(BaseModel):
     """Answers from the learning-style questionnaire (flexible keys)."""
 
     answers: dict[str, str] = Field(default_factory=dict)
+
+
+class NotificationPreferencesIn(BaseModel):
+    daily_enabled: bool = False
+    daily_time: str = Field(default="09:00", max_length=5)
+    timezone: str | None = Field(default=None, max_length=64)
+    custom_reminders: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class SubjectCreate(BaseModel):
@@ -126,6 +134,7 @@ class CourseCreateIn(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field(default="", max_length=2000)
     duration_label: str = Field(default="1w", max_length=32)
+    file_text: str | None = Field(default=None, max_length=50_000)
 
 
 class CourseOut(BaseModel):

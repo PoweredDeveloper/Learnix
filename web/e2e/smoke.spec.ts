@@ -14,9 +14,12 @@ test("dashboard page loads without session key", async ({ page }) => {
 
 test("create course page loads", async ({ page }) => {
   await page.goto("/create-course");
-  await expect(
-    page.getByRole("heading", { name: /Create a New Course/i }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: /New course/i })).toBeVisible();
+});
+
+test("settings page loads", async ({ page }) => {
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: /Settings/i })).toBeVisible();
 });
 
 test("learnix header is visible", async ({ page }) => {
@@ -26,6 +29,6 @@ test("learnix header is visible", async ({ page }) => {
 
 test("navigation links work", async ({ page }) => {
   await page.goto("/create-course");
-  await page.getByText("Back to Dashboard").click();
+  await page.getByText("Back to dashboard").click();
   await expect(page).toHaveURL("/");
 });

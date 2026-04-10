@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "@/pages/Dashboard";
 import CreateCourse from "@/pages/CreateCourse";
+import Settings from "@/pages/Settings";
 import CourseView from "@/pages/CourseView";
 import LessonView from "@/pages/LessonView";
 import AdminDashboard from "@/AdminDashboard";
@@ -19,6 +20,7 @@ export default function App() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route element={<Layout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/create-course" element={<CreateCourse />} />
           <Route path="/course/:courseId" element={<CourseView />} />
           <Route

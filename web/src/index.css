@@ -26,6 +26,14 @@
   --radius: 0.5rem;
   --success: 142 71% 45%;
   --warning: 38 92% 50%;
+  /* checkbox.tsx (web_instructions/checkboxes.md) — dark UI */
+  --ds-gray-100: hsla(0, 0%, 10%, 1);
+  --ds-gray-200: hsla(0, 0%, 12%, 1);
+  --ds-gray-500: hsla(0, 0%, 27%, 1);
+  --ds-gray-600: hsla(0, 0%, 53%, 1);
+  --ds-gray-700: hsla(0, 0%, 56%, 1);
+  --ds-gray-1000: hsla(0, 0%, 93%, 1);
+  --ds-background-100: hsla(0, 0%, 4%, 1);
 }
 
 @theme inline {
@@ -160,8 +168,75 @@ body {
   margin-bottom: 1.5em;
 }
 
+/* KaTeX: no inner scrollbars; wide equations extend with page flow */
 .prose .katex-display {
   margin-top: 1em;
   margin-bottom: 1em;
-  overflow-x: auto;
+  overflow: visible;
+  overflow-x: visible;
+}
+
+.prose .katex-display > .katex,
+.prose .katex {
+  font-size: 1.05em;
+  overflow: visible;
+  overflow-x: visible;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+  margin-bottom: 1em;
+  font-size: 0.875em;
+}
+
+.prose thead {
+  border-bottom: 2px solid hsl(var(--border));
+}
+
+.prose th {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  text-align: left;
+  padding: 0.5em 0.75em;
+}
+
+.prose td {
+  padding: 0.5em 0.75em;
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+.prose ul {
+  list-style-type: disc;
+}
+
+.prose ol {
+  list-style-type: decimal;
+}
+
+/* react-day-picker (dark UI) */
+.rdp-root {
+  --rdp-accent-color: hsl(var(--primary));
+  --rdp-accent-background-color: hsl(var(--primary) / 0.2);
+  --rdp-day-height: 2.25rem;
+  --rdp-day-width: 2.25rem;
+  color: hsl(var(--foreground));
+}
+.rdp-month_caption {
+  font-weight: 600;
+}
+.rdp-day_button {
+  border-radius: 0.5rem;
+}
+.rdp-outside {
+  opacity: 0.45;
 }
