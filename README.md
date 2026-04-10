@@ -1,12 +1,21 @@
 # Learnix
 
+[![CI](https://github.com/PoweredDeveloper/Learnix/actions/workflows/ci.yml/badge.svg)](https://github.com/PoweredDeveloper/Learnix/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat&logo=react&logoColor=black)](https://react.dev/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
+[![aiogram](https://img.shields.io/badge/aiogram-Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://docs.aiogram.dev/)
+[![Ollama](https://img.shields.io/badge/Ollama-LLM-111111?style=flat)](https://ollama.com/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04-E95420?style=flat&logo=ubuntu&logoColor=white)](https://ubuntu.com/)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-181717?style=flat&logo=github)](https://github.com/PoweredDeveloper/Learnix)
+
+![Dashboard](img/img1.png)
+
 Telegram-first smart study assistant: AI-generated courses, a web dashboard, and a bot for plans, reminders, and guided practice—backed by FastAPI, PostgreSQL, React, and Ollama.
 
-## Demo
+## Lesson page
 
-| Dashboard | Learning |
-| --- | --- |
-| ![Dashboard](img/img1.png) | ![Lesson / learning UI](img/img2.png) |
+![Lesson / learning UI](img/img2.png)
 
 ## Product context
 
@@ -71,7 +80,7 @@ Assume a fresh **Ubuntu 24.04 LTS** VM (same family as typical university lab im
 - **Docker Engine** and the **Docker Compose plugin** — run the stack (`docker compose`).
 - **Optional but common for local LLM:** **Ollama** on the VM host (or use **Ollama Cloud** and skip a large local model).
 
-You do *not* need to install Python or Node on the host if you only run services via Docker images built from this repo (the API and web Dockerfiles bundle runtimes). Install `uv` only if you run the API or bot directly on the host for debugging.
+You do _not_ need to install Python or Node on the host if you only run services via Docker images built from this repo (the API and web Dockerfiles bundle runtimes). Install `uv` only if you run the API or bot directly on the host for debugging.
 
 ### Step-by-step deployment
 
@@ -96,7 +105,6 @@ You do *not* need to install Python or Node on the host if you only run services
 
 4. **Configure environment**  
    Copy `.env.example` to `.env` at the repo root and set at minimum:
-
    - `API_SECRET` — shared secret for the API.
    - `VITE_API_SECRET` — **same value** as `API_SECRET` before building the web image (it is baked in at build time).
    - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/BotFather); required for the **bot** container to stay up.
@@ -114,12 +122,12 @@ You do *not* need to install Python or Node on the host if you only run services
 
    Services (see `docker-compose.yml`):
 
-   | Service | Host port | Notes |
-   | ------- | --------- | ----- |
-   | Postgres | **5433** | Database (init script under `docker/`). |
-   | API | **8000** | FastAPI; health at `/health`. |
-   | Web | **5173** | Caddy serves the built SPA; proxies `/api/*` to the API. |
-   | Bot | — | Long-running; needs `TELEGRAM_BOT_TOKEN`. |
+   | Service  | Host port | Notes                                                    |
+   | -------- | --------- | -------------------------------------------------------- |
+   | Postgres | **5433**  | Database (init script under `docker/`).                  |
+   | API      | **8000**  | FastAPI; health at `/health`.                            |
+   | Web      | **5173**  | Caddy serves the built SPA; proxies `/api/*` to the API. |
+   | Bot      | —         | Long-running; needs `TELEGRAM_BOT_TOKEN`.                |
 
 7. **TLS and reverse proxy (production)**  
    Put **Caddy** or **nginx** with Let’s Encrypt in front of ports **5173** (web) and optionally **8000** (API) if you expose the API publicly; restrict `/docs` if needed.
@@ -152,6 +160,6 @@ cd web && npx playwright install && npm run test:e2e
 
 ## Further reading
 
-- `PLAN.md` — product scope and architecture notes.  
-- `AGENT.md` — agent / automation guidelines for this repo.  
+- `PLAN.md` — product scope and architecture notes.
+- `AGENT.md` — agent / automation guidelines for this repo.
 - `.env.example` — full list of environment variables.
