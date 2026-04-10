@@ -1,69 +1,144 @@
-# Smart Study Assistant (SETHack)
+# Learnix
 
-Telegram-first study planner with **FastAPI** + **PostgreSQL**, **aiogram** bot, **React** dashboard, and **Ollama** for AI features. See `PLAN.md` and `AGENT.md` for product scope and agent rules.
+Telegram-first smart study assistant: AI-generated courses, a web dashboard, and a bot for plans, reminders, and guided practice—backed by FastAPI, PostgreSQL, React, and Ollama.
 
-## Quick start
+## Demo
 
-1. **Database & API**
+| Dashboard | Learning |
+| --- | --- |
+| ![Dashboard](img/img1.png) | ![Lesson / learning UI](img/img2.png) |
 
-   Install [uv](https://docs.astral.sh/uv/). Then:
+## Product context
+
+**End users**  
+Students and self-learners who already use **Telegram** daily and want structure without juggling separate “chat with AI” tabs that forget their syllabus the next day.
+
+**Problem**  
+Generic chatbots do not persist a real **course structure** (sections, lessons, tasks), do not turn uploads into durable **study material**, and do not tie progress to **habits** (streaks, reminders) in the same place students already check messages.
+
+**Solution**  
+**Learnix** keeps **courses and lessons** in a database, uses **Ollama** to generate syllabi and lesson content from a topic (and optional reference text), exposes a **React** web app for deep reading and exercises, and uses an **aiogram** bot for **daily nudges**, quick links to the web app, and a consistent **API-key + Telegram user ID** identity model.
+
+## Features
+
+### Implemented
+
+- **Courses & lessons:** Create courses (topic, duration, optional file text); AI builds a syllabus and per-lesson content (theory, practice, exam-style questions).
+- **Web dashboard:** Progress overview, metrics (streak, lessons, study time), course list, course detail with lesson navigation.
+- **Lesson experience:** Markdown + LaTeX rendering, practice tasks with AI grading (JSON), exam sections, side AI tutor chat, “complete lesson” flow.
+- **Study time & streaks:** Minutes counted toward daily goals when lessons are completed (and related streak logic on the backend).
+- **Telegram bot:** Menu, web-app links, integration with the same backend as the web UI.
+- **Notifications:** User timezone, daily reminder time, and optional dated reminders (stored in the API; bot dispatch uses internal endpoints).
+- **Deployment:** `docker compose` stack: Postgres, API, static web (Caddy), bot; optional **Ollama** on the host or **Ollama Cloud** via env vars.
+- **Auth (MVP):** Protected routes require `X-API-Key` and `X-Telegram-User-Id` (bot and web send these after session bootstrap).
+
+### Not yet implemented (roadmap)
+
+- **Multiple languages:** UI and lesson content localization (i18n), plus model prompts tuned per locale.
+- **Spaced repetition:** Export or built-in decks (e.g. Anki) from lesson highlights and wrong answers.
+- **Rich LMS integration:** Deep link-out to Canvas/Moodle with grade sync (settings mention future LMS API key).
+- **Native mobile apps:** Dedicated iOS/Android clients beyond Telegram WebApp and the browser.
+- **Collaborative study:** Shared courses, study groups, and peer progress visibility.
+- **Offline mode:** Download lessons for offline reading without network.
+- **Accessibility extras:** Screen-reader-first lesson layouts, optional TTS for lesson body text.
+
+## Usage
+
+1. **Get access via Telegram**  
+   Use the project’s bot (token configured by operators). Open the **Web app** link from the bot menu or the flow your deployment documents so the browser receives a valid web session (the UI expects the Telegram-linked flow).
+
+2. **Web dashboard**  
+   Open the deployed web URL (e.g. `https://your-host/`). You should see courses, streaks, and “Study today” style metrics. Create a **new course** from the dashboard; wait for generation to finish if the course status shows generating.
+
+3. **Study a course**  
+   Open a course, pick a lesson from the sidebar. Read the material, use the **AI chat** for questions, complete **practice** (submit answers for grading), finish **exam** items if present, then use **Complete & continue** when the UI allows.
+
+4. **Settings**  
+   Set **timezone** and **daily reminder** (and optional one-off reminders) so Telegram messages fire at the correct local time.
+
+5. **API**  
+   Operators can inspect OpenAPI at `http://<api-host>:8000/docs` when the API is exposed (development or VPN-only in production).
+
+**Local development (no full Docker stack for web):** from `web/`, `npm install && npm run dev` with Vite proxying `/api` to the API (see `.env.example` for `VITE_API_SECRET` alignment with `API_SECRET`).
+
+## Deployment
+
+Assume a fresh **Ubuntu 24.04 LTS** VM (same family as typical university lab images).
+
+### What to install on the VM
+
+- **Git** — clone the repository.
+- **Docker Engine** and the **Docker Compose plugin** — run the stack (`docker compose`).
+- **Optional but common for local LLM:** **Ollama** on the VM host (or use **Ollama Cloud** and skip a large local model).
+
+You do *not* need to install Python or Node on the host if you only run services via Docker images built from this repo (the API and web Dockerfiles bundle runtimes). Install `uv` only if you run the API or bot directly on the host for debugging.
+
+### Step-by-step deployment
+
+1. **SSH into the VM** and update packages:
 
    ```bash
-   docker compose up -d db
-   cd backend
-   uv sync --group dev
-   cp ../.env.example ../.env   # optional; defaults match compose
-   export DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/sethack
-   uv run alembic upgrade head
-   uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   sudo apt update && sudo apt upgrade -y
    ```
 
-   Postgres is exposed on **host port 5433** (see `docker-compose.yml`).
-
-2. **Ollama**
-   - **Local:** run `ollama serve` on the host and pull a model, e.g. `ollama pull llama3.2`. Use `OLLAMA_MODE=local` and `OLLAMA_BASE_URL=http://127.0.0.1:11434` (Docker API service uses `host.docker.internal:11434` by default).
-   - **Cloud:** set `OLLAMA_MODE=cloud`, `OLLAMA_BASE_URL=https://ollama.com`, and `OLLAMA_API_KEY` from [ollama.com/settings/keys](https://ollama.com/settings/keys). Uses the same `/api/chat` JSON as local ([docs](https://docs.ollama.com/cloud)). Pick a **cloud** model (e.g. `gpt-oss:120b`). If the base URL is still the default localhost, the app defaults to `https://ollama.com`. A trailing `/v1` in the URL is stripped automatically.
-
-3. **Bot**
+2. **Install Docker** (official Docker docs for Ubuntu 24.04), then ensure your user can run Docker:
 
    ```bash
-   cd bot
-   uv sync --group dev
-   export TELEGRAM_BOT_TOKEN=... API_BASE_URL=http://127.0.0.1:8000 API_SECRET=dev-secret-change-me
-   uv run python -m tg_bot.main
+   sudo usermod -aG docker "$USER"
+   # log out and back in for group membership
    ```
 
-4. **Web**
+3. **Clone the repository:**
 
    ```bash
-   cd web && npm install && npm run dev
+   git clone <your-repo-url> learnix && cd learnix
    ```
 
-   Open http://localhost:5173 — set your Telegram numeric ID to match the bot user. Vite proxies `/api` → `http://127.0.0.1:8000`.
+4. **Configure environment**  
+   Copy `.env.example` to `.env` at the repo root and set at minimum:
 
-## Docker
+   - `API_SECRET` — shared secret for the API.
+   - `VITE_API_SECRET` — **same value** as `API_SECRET` before building the web image (it is baked in at build time).
+   - `TELEGRAM_BOT_TOKEN` — from [@BotFather](https://t.me/BotFather); required for the **bot** container to stay up.
+   - `WEB_PUBLIC_BASE_URL` — public **HTTPS** URL of the web app (e.g. `https://learnix.example.edu`) so Telegram clients can open the WebApp; add that origin to `CORS_ORIGINS` for the API.
+   - **Ollama:** either run Ollama on the VM and set `OLLAMA_MODE=local` and `OLLAMA_BASE_URL` (from inside Docker, the host is often `http://172.17.0.1:11434` on Linux, or publish Ollama on a host port and point the URL there), **or** set `OLLAMA_MODE=cloud`, `OLLAMA_BASE_URL=https://ollama.com`, and `OLLAMA_API_KEY`.
 
-**`docker compose up -d --build`** starts **db**, **api**, **web**, and **bot**.
+5. **Ollama on the same VM (typical local setup)**  
+   Install Ollama, `ollama serve`, and `ollama pull <OLLAMA_MODEL>`. Ensure the API container can reach that address (`OLLAMA_BASE_URL` in `.env`).
 
-| Service  | Host port | Notes                                                                                                                    |
-| -------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Postgres | **5433**  | —                                                                                                                        |
-| API      | **8000**  | OpenAPI at `/docs`                                                                                                       |
-| Web      | **5173**  | Caddy serves the built React app; `/api/*` is proxied to the API                                                         |
-| Bot      | —         | Requires **`TELEGRAM_BOT_TOKEN`** in project `.env`; if it is missing, the bot container exits (set it from @BotFather). |
+6. **Build and start the stack:**
 
-The bot’s **`WEB_PUBLIC_BASE_URL`** defaults to **`http://localhost:5173`** in Compose (same host port as **web**), so the menu **Web app** link works for Telegram Desktop on the same machine. Override with an **HTTPS** URL (e.g. ngrok) for Telegram on a phone, and add that origin to **`CORS_ORIGINS`**.
+   ```bash
+   docker compose up -d --build
+   ```
 
-Set **`API_SECRET`** and **`VITE_API_SECRET`** to the same value in `.env` so the web UI’s `X-API-Key` matches the API (or rebuild `web` after changing `VITE_API_SECRET`).
+   Services (see `docker-compose.yml`):
 
-For **local development** without Docker, use `cd web && npm run dev` instead of the `web` service.
+   | Service | Host port | Notes |
+   | ------- | --------- | ----- |
+   | Postgres | **5433** | Database (init script under `docker/`). |
+   | API | **8000** | FastAPI; health at `/health`. |
+   | Web | **5173** | Caddy serves the built SPA; proxies `/api/*` to the API. |
+   | Bot | — | Long-running; needs `TELEGRAM_BOT_TOKEN`. |
 
-Ensure Ollama is reachable from the API container when using local mode (`OLLAMA_BASE_URL`); on Mac, `host.docker.internal:11434` is the default in compose.
+7. **TLS and reverse proxy (production)**  
+   Put **Caddy** or **nginx** with Let’s Encrypt in front of ports **5173** (web) and optionally **8000** (API) if you expose the API publicly; restrict `/docs` if needed.
+
+8. **Migrations**  
+   The API container runs `alembic upgrade head` on startup. For a fresh database, ensure Postgres is healthy before the API starts (`depends_on` handles ordering in Compose).
+
+9. **Firewall**  
+   Allow **443** (and **80** for ACME) for the web app; expose **8000** only on an admin network if you do not want a public API.
+
+### Ollama notes
+
+- **Docker API + Ollama on VM:** On Linux, `host.docker.internal` may be unavailable unless configured; prefer the host gateway IP or publish `11434` and use `http://<vm-ip>:11434` from compose via `OLLAMA_BASE_URL`.
+- **Cloud mode:** No large model RAM on the VM; you need a valid Ollama.com API key and a cloud-capable model name.
 
 ## Tests
 
 ```bash
-# Backend (needs Postgres test DB on 5433 — created by docker/postgres-init.sql)
+# Backend (Postgres test DB on 5433 — see docker/postgres-init.sql)
 cd backend && uv sync --group dev && uv run pytest
 ```
 
@@ -75,15 +150,8 @@ cd bot && uv sync --group dev && uv run pytest
 cd web && npx playwright install && npm run test:e2e
 ```
 
-(API must be up for streak/tasks calls from the web app; smoke test only checks the page shell.)
+## Further reading
 
-## Auth (MVP)
-
-All protected API routes require:
-
-- `X-API-Key: <API_SECRET>`
-- `X-Telegram-User-Id: <telegram numeric id>`
-
-The bot and web send these on every request.
-
-Optional **`LMS_BACKEND_API_KEY`** (see `.env.example`) is loaded into backend settings for future LMS integration; set it in `.env` when you wire outbound LMS calls.
+- `PLAN.md` — product scope and architecture notes.  
+- `AGENT.md` — agent / automation guidelines for this repo.  
+- `.env.example` — full list of environment variables.
