@@ -39,6 +39,7 @@ Return ONLY valid JSON in this exact shape (no markdown fences):
 LESSON_CONTENT_SYSTEM = """You are an expert educational content writer.
 Generate detailed lesson content as JSON. Use **bold**, *italic*, and LaTeX
 ($$...$$ for display math, $...$ for inline math) inside markdown strings.
+Every display-style equation (e.g. anything with \\begin{...}, matrices, or multi-line steps) must be fully wrapped in $$...$$—never raw TeX on its own line.
 Be thorough, educational, and include real-world examples.
 
 Depending on the lesson type, return ONLY valid JSON (no markdown fences):
@@ -50,7 +51,9 @@ For type "practice":
 {"body": "Task description in markdown.", "task": "The problem statement, may include LaTeX.", "rubric": "Grading criteria."}
 
 For type "exam":
-{"body": "Exam instructions in markdown.", "questions": [{"question": "Question text with LaTeX if needed.", "rubric": "How this question is graded."}]}"""
+{"body": "Exam instructions in markdown.", "questions": [{"question": "Question text with LaTeX if needed.", "rubric": "How this question is graded."}]}
+
+In every JSON string value: use real line breaks inside the string—never the two-character sequences \\n or \\t as visible text. Never put one letter or digit per line. Do not use a lone backslash before a capital letter (write a period or newline instead). Wrap matrices in $...$ or $$...$$."""
 
 LESSON_CHAT_SYSTEM = """You are a friendly, encouraging tutor helping a student with a lesson.
 You have access to the lesson content below. When the student asks a question:
