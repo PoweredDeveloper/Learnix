@@ -3,11 +3,22 @@ import logging
 
 import httpx
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from tg_bot.config import get_settings
 from tg_bot.handlers.common import router as common_router
 from tg_bot.handlers.onboarding_course import router as onboarding_router
+
+
+def _telegram_session() -> AiohttpSession:
+    s = get_settings()
+    proxy = (s.telegram_http_proxy or "").strip() or None
+    kwargs: dict = {"timeout": s.telegram_http_timeout}
+    if proxy:
+        kwargs["proxy"] = proxy
+    return AiohttpSession(**kwargs)
 
 
 async def run_notification_worker(bot: Bot) -> None:
@@ -37,11 +48,29 @@ async def run_notification_worker(bot: Bot) -> None:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     s = get_settings()
-    bot = Bot(s.telegram_bot_token)
+    bot = Bot(s.telegram_bot_token, session=_telegram_session())
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(onboarding_router)
     dp.include_router(common_router)
     asyncio.create_task(run_notification_worker(bot))
+    # Transient egress/DNS issues on deploy: retry get_me until Telegram is reachable.
+    delay_s = 5.0
+    max_delay_s = 120.0
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            await bot.get_me()
+            break
+        except TelegramNetworkError as e:
+            logging.warning(
+                "Telegram Bot API unreachable (attempt %s): %s — retrying in %.0fs",
+                attempt,
+                e,
+                delay_s,
+            )
+            await asyncio.sleep(delay_s)
+            delay_s = min(delay_s * 1.5, max_delay_s)
     await dp.start_polling(bot)
 
 
