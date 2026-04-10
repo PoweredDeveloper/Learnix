@@ -1,4 +1,6 @@
-FROM node:20-alpine AS build
+# Debian/glibc: Tailwind v4 → lightningcss native bindings are more reliable than on Alpine/musl
+# (avoids missing/wrong optional package + detect-libc edge cases during `vite build`).
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 # More resilient to slow registry (same class of issue as PyPI timeouts in Docker)
 ENV NPM_CONFIG_FETCH_RETRIES=5 \
