@@ -158,7 +158,16 @@ async def create_course_stream(
                 break
             yield f"data: {_dumps({'log': msg})}\n\n"
 
-    return StreamingResponse(event_stream_sse(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream_sse(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            # nginx: disable response buffering so SSE reaches the browser before the stream completes
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/upload-file")

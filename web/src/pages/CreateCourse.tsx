@@ -110,46 +110,76 @@ export default function CreateCourse() {
 
       const decoder = new TextDecoder()
       let buffer = ''
+      let streamFinished = false
 
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (!raw) continue
-
-          try {
-            const evt = JSON.parse(raw)
-            if (evt.log) {
-              setLogs((prev) => [...prev, { text: evt.log }])
-              setTimeout(scrollLogs, 50)
-            }
-            if (evt.done && evt.result) {
-              if (evt.result.error) {
-                setError(evt.result.error)
-                setLoading(false)
-                return
-              }
-              const courseId = evt.result.course?.id ?? evt.result.id
-              if (courseId) {
-                navigate(`/course/${courseId}`)
-                return
-              }
-            }
-          } catch {
-            // skip malformed SSE
+      const processDataPayload = (raw: string) => {
+        if (!raw) return
+        try {
+          const evt = JSON.parse(raw) as {
+            log?: string
+            done?: boolean
+            result?: { error?: string; id?: string; course?: { id?: string } }
           }
+          if (evt.log) {
+            setLogs((prev) => [...prev, { text: evt.log }])
+            setTimeout(scrollLogs, 50)
+          }
+          if (evt.done && evt.result) {
+            if (evt.result.error) {
+              setError(evt.result.error)
+              setLoading(false)
+              streamFinished = true
+              return
+            }
+            const courseId = evt.result.course?.id ?? evt.result.id
+            if (courseId) {
+              streamFinished = true
+              navigate(`/course/${courseId}`)
+              return
+            }
+          }
+        } catch {
+          // skip malformed SSE
         }
       }
 
-      setError('Stream ended without result.')
-      setLoading(false)
+      const drainCompleteLines = (chunk: string): string => {
+        let buf = chunk
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (streamFinished) return ''
+          const t = line.replace(/\r$/, '')
+          if (!t.startsWith('data:')) continue
+          const raw = t.startsWith('data: ') ? t.slice(6).trim() : t.slice(5).trim()
+          processDataPayload(raw)
+        }
+        return buf
+      }
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (value?.byteLength) {
+          buffer += decoder.decode(value, { stream: !done })
+        } else if (done) {
+          buffer += decoder.decode()
+        }
+        buffer = drainCompleteLines(buffer)
+        if (streamFinished) return
+        if (done) {
+          const tail = buffer.replace(/\r$/, '').trim()
+          if (tail.startsWith('data:')) {
+            const raw = tail.startsWith('data: ') ? tail.slice(6).trim() : tail.slice(5).trim()
+            processDataPayload(raw)
+          }
+          break
+        }
+      }
+
+      if (!streamFinished) {
+        setError('Stream ended without result.')
+        setLoading(false)
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create course')
       setLoading(false)

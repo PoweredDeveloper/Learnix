@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 from uuid import UUID
 
@@ -20,10 +21,27 @@ class BackendClient:
             return r.json()
 
     async def ensure_web_session(self) -> dict[str, Any]:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(f"{self.base_url}/users/me/web-session", headers=self.headers)
-            r.raise_for_status()
-            return r.json()
+        last: BaseException | None = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    r = await client.post(
+                        f"{self.base_url}/users/me/web-session",
+                        headers=self.headers,
+                    )
+                    r.raise_for_status()
+                    return r.json()
+            except (
+                httpx.ConnectError,
+                httpx.ConnectTimeout,
+                httpx.ReadTimeout,
+                httpx.RemoteProtocolError,
+            ) as e:
+                last = e
+                if attempt < 2:
+                    await asyncio.sleep(0.5 * (2**attempt))
+        assert last is not None
+        raise last
 
     async def complete_onboarding(self, answers: dict[str, str]) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -67,14 +85,33 @@ class BackendClient:
             return r.json()
 
     async def ensure_user(self, name: str | None, timezone: str = "UTC") -> dict[str, Any]:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            r = await client.post(
-                f"{self.base_url}/users/ensure",
-                json={"telegram_id": self.telegram_user_id, "name": name, "timezone": timezone},
-                headers=self.headers,
-            )
-            r.raise_for_status()
-            return r.json()
+        """POST /users/ensure with retries on transient Docker / network blips."""
+        last: BaseException | None = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    r = await client.post(
+                        f"{self.base_url}/users/ensure",
+                        json={
+                            "telegram_id": self.telegram_user_id,
+                            "name": name,
+                            "timezone": timezone,
+                        },
+                        headers=self.headers,
+                    )
+                    r.raise_for_status()
+                    return r.json()
+            except (
+                httpx.ConnectError,
+                httpx.ConnectTimeout,
+                httpx.ReadTimeout,
+                httpx.RemoteProtocolError,
+            ) as e:
+                last = e
+                if attempt < 2:
+                    await asyncio.sleep(0.6 * (2**attempt))
+        assert last is not None
+        raise last
 
     async def tasks_today(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=30.0) as client:
