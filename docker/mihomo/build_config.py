@@ -156,6 +156,36 @@ def vless_uri_to_proxy(uri: str) -> dict:
     return proxy
 
 
+def _has_subscription_env() -> bool:
+    raw = os.environ.get("PROXY_SUBSCRIPTION_RAW")
+    return bool(
+        (os.environ.get("PROXY_SUBSCRIPTION_URL") or "").strip()
+        or (os.environ.get("PROXY_SUBSCRIPTION_FILE") or "").strip()
+        or (raw is not None and str(raw).strip())
+    )
+
+
+def build_direct_passthrough_config() -> dict:
+    """Mihomo with no upstream: HTTP/SOCKS mixed port forwards to the internet as DIRECT."""
+    mixed = int(os.environ.get("MIHOMO_MIXED_PORT") or "7890")
+    return {
+        "mixed-port": mixed,
+        "bind-address": "*",
+        "allow-lan": True,
+        "mode": "rule",
+        "log-level": (os.environ.get("MIHOMO_LOG_LEVEL") or "info").lower(),
+        "proxies": [],
+        "proxy-groups": [
+            {
+                "name": "learnix-out",
+                "type": "select",
+                "proxies": ["DIRECT"],
+            }
+        ],
+        "rules": ["MATCH,learnix-out"],
+    }
+
+
 def build_config() -> dict:
     text = load_subscription_text()
     uri = first_vless_uri(text)
@@ -164,6 +194,7 @@ def build_config() -> dict:
     return {
         "mixed-port": mixed,
         "bind-address": "*",
+        "allow-lan": True,
         "mode": "rule",
         "log-level": (os.environ.get("MIHOMO_LOG_LEVEL") or "info").lower(),
         "proxies": [proxy],
@@ -179,12 +210,20 @@ def build_config() -> dict:
 
 
 def main() -> int:
-    try:
-        cfg = build_config()
-    except (urllib.error.URLError, ValueError, OSError) as e:
-        print(f"build_config: {e}", file=sys.stderr)
-        return 1
     out_path = sys.argv[1] if len(sys.argv) > 1 else "-"
+    if not _has_subscription_env():
+        cfg = build_direct_passthrough_config()
+        print(
+            "build_config: no PROXY_SUBSCRIPTION_* set — using DIRECT passthrough "
+            "(bot can still use http://mihomo:7890 as a stable local forwarder).",
+            file=sys.stderr,
+        )
+    else:
+        try:
+            cfg = build_config()
+        except (urllib.error.URLError, ValueError, OSError) as e:
+            print(f"build_config: {e}", file=sys.stderr)
+            return 1
     dump = yaml.safe_dump(cfg, sort_keys=False, allow_unicode=True)
     if out_path in ("-", ""):
         sys.stdout.write(dump)

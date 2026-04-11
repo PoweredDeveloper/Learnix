@@ -12,3 +12,4 @@ web/test-results/
 *.egg-info/
 .DS_Store
 setup-server.sh
+.setup-server.proxy-overlay.yml

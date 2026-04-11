@@ -65,9 +65,9 @@ async def main() -> None:
         except TelegramNetworkError as e:
             proxy = (get_settings().telegram_http_proxy or "").strip()
             hint = (
-                " If outbound HTTPS to api.telegram.org is blocked, set TELEGRAM_HTTP_PROXY "
-                "(e.g. http://mihomo:7890 with `docker compose --profile proxy up`) "
-                "and ensure aiohttp-socks is installed for socks5:// proxies."
+                " If outbound HTTPS to api.telegram.org is blocked, ensure the mihomo service is up "
+                "and TELEGRAM_HTTP_PROXY points at it (Compose default http://mihomo:7890); "
+                "set PROXY_SUBSCRIPTION_* on mihomo for a real upstream. socks5:// needs aiohttp-socks."
                 if not proxy
                 else f" Current TELEGRAM_HTTP_PROXY={proxy!r} — verify the proxy is up and reachable from this container."
             )

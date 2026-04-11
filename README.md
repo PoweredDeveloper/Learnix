@@ -127,7 +127,8 @@ You do _not_ need to install Python or Node on the host if you only run services
    | Postgres | **5433**  | Database (init script under `docker/`).                  |
    | API      | **8000**  | FastAPI; health at `/health`.                            |
    | Web      | **5173**  | Caddy serves the built SPA; proxies `/api/*` to the API. |
-   | Bot      | —         | Long-running; needs `TELEGRAM_BOT_TOKEN`.                |
+   | Mihomo   | —         | Telegram HTTP proxy on **7890** (DIRECT unless subscription set). |
+   | Bot      | —         | Needs `TELEGRAM_BOT_TOKEN`; defaults to proxy via Mihomo. |
 
 7. **TLS and reverse proxy (production)**  
    Put **Caddy** or **nginx** with Let’s Encrypt in front of ports **5173** (web) and optionally **8000** (API) if you expose the API publicly; restrict `/docs` if needed.
@@ -151,16 +152,14 @@ You do _not_ need to install Python or Node on the host if you only run services
 
 If an old **`pgdata`** volume was created before `docker/postgres-init.sql` ran, the **`sethack_test`** database (or even **`sethack`**) may be missing and the API will fail migrations. Run `./docker/ensure-databases.sh` from the host against the published port (defaults: `PGHOST=127.0.0.1` `PGPORT=5433`), or pipe the script into `docker compose exec -T db …` as documented in the script header. Set **`ENSURE_POSTGRES_PASSWORD=1`** once if the superuser password no longer matches `postgres` in compose.
 
-### Telegram egress (optional Mihomo sidecar)
+### Telegram egress (Mihomo sidecar)
 
-When the host or network blocks **api.telegram.org**, start the **Mihomo** sidecar and point the bot at it:
+**Mihomo** is part of the default `docker compose` stack. The bot uses **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** by default (override or clear in `.env` if you need something else).
 
-```bash
-# In .env: PROXY_SUBSCRIPTION_URL=<your subscription URL> and TELEGRAM_HTTP_PROXY=http://mihomo:7890
-docker compose --profile proxy up -d --build
-```
+- **No subscription:** Mihomo starts in **DIRECT** passthrough on port **7890** (no upstream VPN). Telegram still goes through Mihomo as a stable local HTTP proxy; use this when the network can reach **api.telegram.org** directly.
+- **With subscription:** set **`PROXY_SUBSCRIPTION_URL`**, **`PROXY_SUBSCRIPTION_FILE`**, or **`PROXY_SUBSCRIPTION_RAW`** for the `mihomo` service. The image picks the first **`vless://`** line and writes a static config (see `docker/mihomo/build_config.py`).
 
-The sidecar (`docker/mihomo/`) decodes the subscription, takes the first **`vless://`** line, writes a **static** Mihomo config (avoids remote provider parse quirks), and listens on **`7890`**. The **`aiohttp-socks`** dependency is only required for **socks5://** proxies; it is listed in `bot/pyproject.toml`.
+**`aiohttp-socks`** is only needed for **socks5://** proxies on the bot; it is listed in `bot/pyproject.toml`.
 
 ### Ollama notes
 
@@ -189,4 +188,6 @@ cd web && npx playwright install && npm run test:e2e
 - `.env.example` — full list of environment variables.
 - `Learnix/docker-compose.yml` — production merge overlay for **nginx-proxy** / **`proxy-net`**.
 - `docker/ensure-databases.sh` — ensure **`sethack`** / **`sethack_test`** exist on Postgres.
-- `docker/mihomo/` — Mihomo sidecar for **Telegram** HTTP proxy (`--profile proxy`).
+- `docker/mihomo/` — Mihomo sidecar for **Telegram** (default **DIRECT**; optional **PROXY_SUBSCRIPTION_***).
+- `setup-server.sh` — optional **VDS** bootstrap: nginx-proxy + TLS for `learnix.mikyss.ru`, then `docker compose` with the proxy overlay. If `Learnix/docker-compose.yml` is missing (e.g. shallow clone), the script writes `.setup-server.proxy-overlay.yml` in the repo root with the same effect.
+   

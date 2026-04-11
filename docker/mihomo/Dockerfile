@@ -1,5 +1,5 @@
-# Mihomo sidecar: generates /config/config.yaml from PROXY_SUBSCRIPTION_* then runs mihomo.
-# Use with Docker Compose profile `proxy` and point the bot at http://mihomo:7890.
+# Mihomo sidecar: writes /config/config.yaml (DIRECT passthrough if no PROXY_SUBSCRIPTION_*), then runs mihomo.
+# Compose wires the bot to http://mihomo:7890 by default.
 
 FROM python:3.12-alpine
 

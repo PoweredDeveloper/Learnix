@@ -1,0 +1,15 @@
+# Merge with repo root: docker compose -f docker-compose.yml -f Learnix/docker-compose.yml up -d
+#
+# Joins the `web` service to external `proxy-net` so nginx-proxy can reach it (container_name learnix-web).
+# Create the network once: docker network create proxy-net
+
+networks:
+  proxy-net:
+    external: true
+
+services:
+  web:
+    container_name: learnix-web
+    networks:
+      - default
+      - proxy-net
