@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     api_secret: str = "dev-secret-change-me"
     # Public HTTPS URL of the web UI (e.g. https://yourhost or ngrok). Used for the Telegram menu Web App link.
     web_public_base_url: str = ""
-    # aiogram default Telegram HTTP timeout is 60s; slow or flaky egress may need more.
-    telegram_http_timeout: float = 120.0
+    # aiogram session timeout (seconds); slow proxy paths to api.telegram.org may need 180+.
+    telegram_http_timeout: float = 180.0
     # Optional HTTP(S) proxy for Bot API (e.g. socks5://user:pass@host:port) if api.telegram.org is unreachable.
     telegram_http_proxy: str = ""
 

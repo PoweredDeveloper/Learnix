@@ -94,7 +94,7 @@ services:
       # Production: set to your public HTTPS web origin (e.g. https://learnix.mikyss.ru) and add the same origin to API `CORS_ORIGINS`.
       # Host URL for the `web` service (port 5173 → Caddy). Override with HTTPS (e.g. ngrok) for Telegram on a phone.
       WEB_PUBLIC_BASE_URL: ${WEB_PUBLIC_BASE_URL:-http://localhost:5173}
-      TELEGRAM_HTTP_TIMEOUT: ${TELEGRAM_HTTP_TIMEOUT:-120}
+      TELEGRAM_HTTP_TIMEOUT: ${TELEGRAM_HTTP_TIMEOUT:-180}
       # Set TELEGRAM_HTTP_PROXY=http://mihomo:7890 only when Telegram must go through Mihomo (blocked egress + subscription).
       TELEGRAM_HTTP_PROXY: ${TELEGRAM_HTTP_PROXY:-}
     depends_on:
