@@ -63,11 +63,20 @@ async def main() -> None:
             await bot.get_me()
             break
         except TelegramNetworkError as e:
+            proxy = (get_settings().telegram_http_proxy or "").strip()
+            hint = (
+                " If outbound HTTPS to api.telegram.org is blocked, set TELEGRAM_HTTP_PROXY "
+                "(e.g. http://mihomo:7890 with `docker compose --profile proxy up`) "
+                "and ensure aiohttp-socks is installed for socks5:// proxies."
+                if not proxy
+                else f" Current TELEGRAM_HTTP_PROXY={proxy!r} — verify the proxy is up and reachable from this container."
+            )
             logging.warning(
-                "Telegram Bot API unreachable (attempt %s): %s — retrying in %.0fs",
+                "Telegram Bot API unreachable (attempt %s): %s — retrying in %.0fs.%s",
                 attempt,
                 e,
                 delay_s,
+                hint,
             )
             await asyncio.sleep(delay_s)
             delay_s = min(delay_s * 1.5, max_delay_s)

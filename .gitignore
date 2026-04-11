@@ -11,3 +11,4 @@ web/playwright-report/
 web/test-results/
 *.egg-info/
 .DS_Store
+setup-server.sh

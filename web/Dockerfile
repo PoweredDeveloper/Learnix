@@ -1,5 +1,8 @@
 # Debian/glibc: Tailwind v4 → lightningcss native bindings are more reliable than on Alpine/musl
 # (avoids missing/wrong optional package + detect-libc edge cases during `vite build`).
+#
+# Build diagnostics: `DOCKER_BUILDKIT=1 docker build --progress=plain ...` shows full vite output.
+# If the Node step OOMs in CI, set e.g. `NODE_OPTIONS=--max-old-space-size=2048` on the build stage.
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 # More resilient to slow registry (same class of issue as PyPI timeouts in Docker)

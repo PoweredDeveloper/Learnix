@@ -132,11 +132,35 @@ You do _not_ need to install Python or Node on the host if you only run services
 7. **TLS and reverse proxy (production)**  
    Put **Caddy** or **nginx** with Let’s Encrypt in front of ports **5173** (web) and optionally **8000** (API) if you expose the API publicly; restrict `/docs` if needed.
 
+   **nginx-proxy (external `proxy-net`):** If the reverse proxy runs in another Compose project, attach the web container to the same user-defined network or nginx-proxy will return **502**. From the repo root:
+
+   ```bash
+   docker network create proxy-net   # once, if it does not exist yet
+   docker compose -f docker-compose.yml -f Learnix/docker-compose.yml up -d --build
+   ```
+
+   That merge sets `container_name: learnix-web` and joins **`proxy-net`** (see `Learnix/docker-compose.yml`). For large uploads and long AI streams through nginx-proxy, copy `Learnix/nginx-proxy-vhost.d.example.conf` into your `vhost.d/<hostname>` snippet (body size and proxy read/send timeouts). The in-stack **Caddy** front for `/api` also disables response buffering and extends read/write timeouts for streaming.
+
 8. **Migrations**  
    The API container runs `alembic upgrade head` on startup. For a fresh database, ensure Postgres is healthy before the API starts (`depends_on` handles ordering in Compose).
 
 9. **Firewall**  
    Allow **443** (and **80** for ACME) for the web app; expose **8000** only on an admin network if you do not want a public API.
+
+### Database volumes
+
+If an old **`pgdata`** volume was created before `docker/postgres-init.sql` ran, the **`sethack_test`** database (or even **`sethack`**) may be missing and the API will fail migrations. Run `./docker/ensure-databases.sh` from the host against the published port (defaults: `PGHOST=127.0.0.1` `PGPORT=5433`), or pipe the script into `docker compose exec -T db …` as documented in the script header. Set **`ENSURE_POSTGRES_PASSWORD=1`** once if the superuser password no longer matches `postgres` in compose.
+
+### Telegram egress (optional Mihomo sidecar)
+
+When the host or network blocks **api.telegram.org**, start the **Mihomo** sidecar and point the bot at it:
+
+```bash
+# In .env: PROXY_SUBSCRIPTION_URL=<your subscription URL> and TELEGRAM_HTTP_PROXY=http://mihomo:7890
+docker compose --profile proxy up -d --build
+```
+
+The sidecar (`docker/mihomo/`) decodes the subscription, takes the first **`vless://`** line, writes a **static** Mihomo config (avoids remote provider parse quirks), and listens on **`7890`**. The **`aiohttp-socks`** dependency is only required for **socks5://** proxies; it is listed in `bot/pyproject.toml`.
 
 ### Ollama notes
 
@@ -163,3 +187,6 @@ cd web && npx playwright install && npm run test:e2e
 - `PLAN.md` — product scope and architecture notes.
 - `AGENT.md` — agent / automation guidelines for this repo.
 - `.env.example` — full list of environment variables.
+- `Learnix/docker-compose.yml` — production merge overlay for **nginx-proxy** / **`proxy-net`**.
+- `docker/ensure-databases.sh` — ensure **`sethack`** / **`sethack_test`** exist on Postgres.
+- `docker/mihomo/` — Mihomo sidecar for **Telegram** HTTP proxy (`--profile proxy`).

@@ -85,11 +85,32 @@ services:
       # Host URL for the `web` service (port 5173 → Caddy). Override with HTTPS (e.g. ngrok) for Telegram on a phone.
       WEB_PUBLIC_BASE_URL: ${WEB_PUBLIC_BASE_URL:-http://localhost:5173}
       TELEGRAM_HTTP_TIMEOUT: ${TELEGRAM_HTTP_TIMEOUT:-120}
+      # With Compose profile `proxy`, set e.g. TELEGRAM_HTTP_PROXY=http://mihomo:7890 (see .env.example).
       TELEGRAM_HTTP_PROXY: ${TELEGRAM_HTTP_PROXY:-}
     depends_on:
       api:
         condition: service_healthy
 
+  # Sidecar HTTP proxy for Telegram Bot API when direct egress to api.telegram.org is blocked.
+  # Start with: docker compose --profile proxy up -d --build
+  mihomo:
+    profiles: ["proxy"]
+    build:
+      context: ./docker/mihomo
+      dockerfile: Dockerfile
+    environment:
+      PROXY_SUBSCRIPTION_URL: ${PROXY_SUBSCRIPTION_URL:-}
+      PROXY_SUBSCRIPTION_FILE: ${PROXY_SUBSCRIPTION_FILE:-}
+      PROXY_SUBSCRIPTION_RAW: ${PROXY_SUBSCRIPTION_RAW:-}
+      MIHOMO_MIXED_PORT: ${MIHOMO_MIXED_PORT:-7890}
+      MIHOMO_LOG_LEVEL: ${MIHOMO_LOG_LEVEL:-info}
+    volumes:
+      - mihomo_work:/config
+    expose:
+      - "7890"
+    restart: unless-stopped
+
 volumes:
   pgdata:
   pgadmin_data:
+  mihomo_work:
