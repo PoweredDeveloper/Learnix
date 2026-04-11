@@ -60,9 +60,3 @@ async def refresh_web_menu(bot: Bot, telegram_user_id: int) -> tuple[str | None,
         return None, False
     menu_ok = await set_telegram_menu_web_app(bot, telegram_user_id, url)
     return url, menu_ok
-
-
-async def refresh_web_menu_button(bot: Bot, telegram_user_id: int) -> bool:
-    """Backward-compatible: True if user got a usable web URL (menu or inline)."""
-    url, _ = await refresh_web_menu(bot, telegram_user_id)
-    return url is not None

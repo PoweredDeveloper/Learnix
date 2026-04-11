@@ -1,16 +1,17 @@
 """Learning-style onboarding (/learn for new users) and personalized course creation (/course)."""
 
+import html
 from io import BytesIO
 
 from aiogram import Bot, F, Router, types
-from aiogram.enums import ChatAction
+from aiogram.enums import ChatAction, ParseMode
 from aiogram.filters import BaseFilter, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from tg_bot.bot_common import backend_client
-from tg_bot.web_menu import refresh_web_menu_button
+from tg_bot.web_menu import refresh_web_menu
 
 router = Router()
 
@@ -110,10 +111,10 @@ async def begin_onboarding(message: types.Message, state: FSMContext) -> None:
     await state.set_state(OnboardingStates.q1)
     await state.update_data(answers={})
     await message.answer(
-        "Before we study together, a few quick questions about **how you learn** "
+        "Before we study together, a few quick questions about <b>how you learn</b> "
         "(about 1 minute).\n\n"
-        "**1/5** — How long do you usually like to focus in one sitting?",
-        parse_mode="Markdown",
+        "<b>1/5</b> — How long do you usually like to focus in one sitting?",
+        parse_mode=ParseMode.HTML,
         reply_markup=_kb_q1(),
     )
 
@@ -143,12 +144,12 @@ async def _finish_onboarding(
     await state.clear()
     await message.answer(
         "Thanks — I’ll tailor explanations and pacing using that.\n\n"
-        "Next, **create a course**: send a topic you want to learn, or upload slides/notes "
+        "Next, <b>create a course</b>: send a topic you want to learn, or upload slides/notes "
         "(PDF or .txt). Use /course when you’re ready.",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.HTML,
         reply_markup=_kb_create_course(),
     )
-    await refresh_web_menu_button(message.bot, uid)
+    await refresh_web_menu(message.bot, uid)
 
 
 @router.callback_query(StateFilter(OnboardingStates.q1), F.data.startswith("ob:1:"))
@@ -162,8 +163,8 @@ async def onb_q1(query: types.CallbackQuery, state: FSMContext) -> None:
     await query.answer()
     if query.message:
         await query.message.edit_text(
-            "**2/5** — When do you usually focus best?",
-            parse_mode="Markdown",
+            "<b>2/5</b> — When do you usually focus best?",
+            parse_mode=ParseMode.HTML,
             reply_markup=_kb_q2(),
         )
 
@@ -179,8 +180,8 @@ async def onb_q2(query: types.CallbackQuery, state: FSMContext) -> None:
     await query.answer()
     if query.message:
         await query.message.edit_text(
-            "**3/5** — What tends to help you learn new material most?",
-            parse_mode="Markdown",
+            "<b>3/5</b> — What tends to help you learn new material most?",
+            parse_mode=ParseMode.HTML,
             reply_markup=_kb_q3(),
         )
 
@@ -196,8 +197,8 @@ async def onb_q3(query: types.CallbackQuery, state: FSMContext) -> None:
     await query.answer()
     if query.message:
         await query.message.edit_text(
-            "**4/5** — What pace do you prefer when covering a new topic?",
-            parse_mode="Markdown",
+            "<b>4/5</b> — What pace do you prefer when covering a new topic?",
+            parse_mode=ParseMode.HTML,
             reply_markup=_kb_q4(),
         )
 
@@ -213,9 +214,9 @@ async def onb_q4(query: types.CallbackQuery, state: FSMContext) -> None:
     await query.answer()
     if query.message:
         await query.message.edit_text(
-            "**5/5** — Anything else I should know? (goals, constraints, exam date…)\n"
-            "Send a message, or tap **Skip**.",
-            parse_mode="Markdown",
+            "<b>5/5</b> — Anything else I should know? (goals, constraints, exam date…)\n"
+            "Send a message, or tap <b>Skip</b>.",
+            parse_mode=ParseMode.HTML,
             reply_markup=_kb_q5_skip(),
         )
 
@@ -271,16 +272,16 @@ async def start_course_flow(
         return
     if not me.get("onboarding_completed"):
         await message.answer(
-            "Finish onboarding first — tap **Study** in the menu.",
-            parse_mode="Markdown",
+            "Finish onboarding first — tap <b>Study</b> in the menu.",
+            parse_mode=ParseMode.HTML,
         )
         return
     await state.set_state(CourseStates.awaiting_content)
     await message.answer(
-        "**Create a course**\n\n"
-        "• Send a **topic** as text, or upload a **PDF / .txt**.\n"
-        "• Tap **Cancel** below or use the menu when you want to stop.",
-        parse_mode="Markdown",
+        "<b>Create a course</b>\n\n"
+        "• Send a <b>topic</b> as text, or upload a <b>PDF / .txt</b>.\n"
+        "• Tap <b>Cancel</b> below or use the menu when you want to stop.",
+        parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="Cancel", callback_data="course:cancel")]]
         ),
@@ -325,10 +326,10 @@ async def course_open_cb(query: types.CallbackQuery, state: FSMContext) -> None:
     await state.set_state(CourseStates.awaiting_content)
     await query.answer()
     await query.message.answer(
-        "**Create a course**\n\n"
-        "Send a **topic** as text, or upload a **PDF / .txt** with your material.\n"
+        "<b>Create a course</b>\n\n"
+        "Send a <b>topic</b> as text, or upload a <b>PDF / .txt</b> with your material.\n"
         "/cancel to stop.",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.HTML,
     )
 
 
@@ -352,9 +353,9 @@ async def course_theme(message: types.Message, state: FSMContext) -> None:
     n = res.get("task_count", 0)
     name = res.get("subject_name", "Course")
     await status_msg.edit_text(
-        f"✅ **{name}** is ready with **{n}** tasks.\n\n"
+        f"✅ <b>{html.escape(str(name))}</b> is ready with <b>{n}</b> tasks.\n\n"
         "Great job. What would you like to do next?",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.HTML,
         reply_markup=_kb_after_course(),
     )
 
@@ -367,7 +368,10 @@ async def course_document(message: types.Message, state: FSMContext, bot: Bot) -
         return
     ext = "." + doc.file_name.rsplit(".", 1)[-1].lower() if "." in doc.file_name else ""
     if ext not in (".pdf", ".txt", ".md"):
-        await message.answer("Please upload a **PDF**, **.txt**, or **.md** file.", parse_mode="Markdown")
+        await message.answer(
+            "Please upload a <b>PDF</b>, <b>.txt</b>, or <b>.md</b> file.",
+            parse_mode=ParseMode.HTML,
+        )
         return
     max_bytes = 20 * 1024 * 1024
     if (doc.file_size or 0) > max_bytes:
@@ -390,8 +394,8 @@ async def course_document(message: types.Message, state: FSMContext, bot: Bot) -
     name = res.get("subject_name", "Course")
     chars = res.get("extracted_chars", 0)
     await status_msg.edit_text(
-        f"✅ **{name}** from your file — **{n}** tasks "
+        f"✅ <b>{html.escape(str(name))}</b> from your file — <b>{n}</b> tasks "
         f"({chars} characters read).\n\nWhat would you like to do next?",
-        parse_mode="Markdown",
+        parse_mode=ParseMode.HTML,
         reply_markup=_kb_after_course(),
     )

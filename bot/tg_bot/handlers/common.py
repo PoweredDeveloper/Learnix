@@ -721,6 +721,19 @@ async def cmd_web(message: types.Message, bot: Bot) -> None:
     )
 
 
+async def _learn_entry_blocked(state: FSMContext) -> str | None:
+    """Plain-text reason to block /learn and Study button; None if allowed."""
+    data = await state.get_data()
+    cur = await state.get_state()
+    if data.get("session_id") and cur == LearnStates.in_session.state:
+        return "End your study session first (tap End session or send /done)."
+    if cur and "OnboardingStates" in cur:
+        return "Finish onboarding first, or send /cancel to stop."
+    if cur and "CourseStates" in cur:
+        return "Finish or cancel course creation first (Cancel or /cancel)."
+    return None
+
+
 async def run_learn_flow(
     message: types.Message,
     state: FSMContext,
@@ -775,6 +788,10 @@ async def run_learn_flow(
 
 @router.message(Command("learn"))
 async def cmd_learn(message: types.Message, state: FSMContext, command: Command) -> None:
+    blocked = await _learn_entry_blocked(state)
+    if blocked:
+        await message.answer(blocked)
+        return
     hint = (command.args or "").strip() or None
     await run_learn_flow(message, state, hint)
 
@@ -864,21 +881,28 @@ async def run_done_flow(
 
 @router.callback_query(F.data == "menu:learn")
 async def menu_learn(query: types.CallbackQuery, state: FSMContext) -> None:
+    if not query.message or not query.from_user:
+        await query.answer()
+        return
+    blocked = await _learn_entry_blocked(state)
+    if blocked:
+        await query.answer(blocked, show_alert=True)
+        return
     await query.answer()
-    if query.message and query.from_user:
-        await run_learn_flow(
-            query.message,
-            state,
-            None,
-            acting_user_id=query.from_user.id,
-            acting_display_name=query.from_user.full_name,
-        )
+    await run_learn_flow(
+        query.message,
+        state,
+        None,
+        acting_user_id=query.from_user.id,
+        acting_display_name=query.from_user.full_name,
+    )
 
 
 @router.callback_query(F.data == "menu:course")
 async def menu_course(query: types.CallbackQuery, state: FSMContext) -> None:
     data = await state.get_data()
-    if data.get("session_id"):
+    cur = await state.get_state()
+    if data.get("session_id") and cur == LearnStates.in_session.state:
         await query.answer("End your study session first (End session).", show_alert=True)
         return
     await query.answer()
@@ -1014,6 +1038,9 @@ async def cmd_streak(message: types.Message) -> None:
 
 @router.callback_query(F.data.in_(("learn:skip", "learn:end", "learn:continue")))
 async def learn_callbacks(query: types.CallbackQuery, state: FSMContext) -> None:
+    if not query.data or not query.from_user:
+        await query.answer()
+        return
     action = query.data.split(":", 1)[1]
     data = await state.get_data()
     sid = data.get("session_id")
@@ -1070,6 +1097,9 @@ async def learn_callbacks(query: types.CallbackQuery, state: FSMContext) -> None
 
 @router.callback_query(F.data.startswith("p:"))
 async def plan_callbacks(query: types.CallbackQuery) -> None:
+    if not query.data or not query.from_user:
+        await query.answer()
+        return
     parts = query.data.split(":")
     if len(parts) < 3:
         await query.answer()
