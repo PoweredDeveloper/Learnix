@@ -154,6 +154,10 @@ You do _not_ need to install Python or Node on the host if you only run services
 
 If an old **`pgdata`** volume was created before `docker/postgres-init.sql` ran, the **`sethack_test`** database (or even **`sethack`**) may be missing and the API will fail migrations. Run `./docker/ensure-databases.sh` from the host against the published port (defaults: `PGHOST=127.0.0.1` `PGPORT=5433`), or pipe the script into `docker compose exec -T db …` as documented in the script header. Set **`ENSURE_POSTGRES_PASSWORD=1`** once if the superuser password no longer matches `postgres` in compose.
 
+### Telegram bot never answers in chat
+
+If **`docker compose logs learnix-bot`** never shows **`Telegram OK — polling as @…`**, the container cannot finish **`get_me()`** (polling never starts). Read the **`Outbound TCP probe`** line: if **`api.telegram.org:443` fails**, open outbound **443** on the host or use **Mihomo + subscription** and **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** on the bot.
+
 ### Telegram egress (Mihomo sidecar)
 
 **Mihomo** is part of the default `docker compose` stack. The bot talks to **Telegram directly** by default (no `TELEGRAM_HTTP_PROXY`). Set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** in `.env` only when outbound access to **api.telegram.org** must go through Mihomo (e.g. you use **`PROXY_SUBSCRIPTION_*`** on the mihomo service). Forcing the bot through Mihomo in **DIRECT** mode (no subscription) can break **aiogram**’s HTTPS session on some setups, so avoid that unless you have a real upstream.

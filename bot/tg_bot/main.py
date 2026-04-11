@@ -21,6 +21,26 @@ def _telegram_session() -> AiohttpSession:
     return AiohttpSession(**kwargs)
 
 
+async def _log_tcp_probe(host: str, port: int) -> None:
+    """Outbound connectivity hint (TLS not exercised — only TCP handshake)."""
+    try:
+        _r, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=12.0)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+        logging.info("Outbound TCP probe OK: %s:%s", host, port)
+    except Exception as e:
+        logging.warning(
+            "Outbound TCP probe failed (%s:%s): %s — Telegram get_me will likely fail until "
+            "this host can reach Telegram (firewall, provider block, or use TELEGRAM_HTTP_PROXY + Mihomo subscription).",
+            host,
+            port,
+            e,
+        )
+
+
 async def run_notification_worker(bot: Bot) -> None:
     s = get_settings()
     url = f"{s.api_base_url.rstrip('/')}/internal/notifications/due"
@@ -48,11 +68,18 @@ async def run_notification_worker(bot: Bot) -> None:
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     s = get_settings()
+    proxy_raw = (s.telegram_http_proxy or "").strip() or None
+    logging.info(
+        "Learnix bot starting — backend %s | TELEGRAM_HTTP_PROXY=%r | next: Telegram get_me()",
+        s.api_base_url,
+        proxy_raw,
+    )
+    await _log_tcp_probe("api.telegram.org", 443)
+
     bot = Bot(s.telegram_bot_token, session=_telegram_session())
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(onboarding_router)
     dp.include_router(common_router)
-    asyncio.create_task(run_notification_worker(bot))
     # Transient egress/DNS issues on deploy: retry get_me until Telegram is reachable.
     delay_s = 5.0
     max_delay_s = 120.0
@@ -76,11 +103,10 @@ async def main() -> None:
         except TelegramNetworkError as e:
             proxy = (get_settings().telegram_http_proxy or "").strip()
             hint = (
-                " If outbound HTTPS to api.telegram.org is blocked, ensure the mihomo service is up "
-                "and TELEGRAM_HTTP_PROXY points at it (Compose default http://mihomo:7890); "
-                "set PROXY_SUBSCRIPTION_* on mihomo for a real upstream. socks5:// needs aiohttp-socks."
+                " If this host blocks api.telegram.org, set PROXY_SUBSCRIPTION_* on the mihomo service and "
+                "TELEGRAM_HTTP_PROXY=http://mihomo:7890 on the bot. socks5:// needs aiohttp-socks."
                 if not proxy
-                else f" Current TELEGRAM_HTTP_PROXY={proxy!r} — verify the proxy is up and reachable from this container."
+                else f" Current TELEGRAM_HTTP_PROXY={proxy!r} — verify Mihomo is up and the subscription works."
             )
             logging.warning(
                 "Telegram Bot API unreachable (attempt %s): %s — retrying in %.0fs.%s",
@@ -95,8 +121,9 @@ async def main() -> None:
     logging.info(
         "Telegram OK — polling as @%s (proxy=%r)",
         me.username or me.first_name,
-        (s.telegram_http_proxy or "").strip() or None,
+        proxy_raw,
     )
+    asyncio.create_task(run_notification_worker(bot))
     await dp.start_polling(bot)
 
 
