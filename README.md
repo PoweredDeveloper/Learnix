@@ -130,7 +130,7 @@ You do _not_ need to install Python or Node on the host if you only run services
    | API      | **8000**  | FastAPI; health at `/health`.                            |
    | Web      | **5173**  | Caddy serves the built SPA; proxies `/api/*` to the API. |
    | Mihomo   | —         | Telegram HTTP proxy on **7890** (DIRECT unless subscription set). |
-   | Bot      | —         | Needs `TELEGRAM_BOT_TOKEN`; defaults to proxy via Mihomo. |
+   | Bot      | —         | Needs `TELEGRAM_BOT_TOKEN`; optional `TELEGRAM_HTTP_PROXY` via Mihomo when egress is blocked. |
 
 7. **TLS and reverse proxy (production)**  
    Put **Caddy** or **nginx** with Let’s Encrypt in front of ports **5173** (web) and optionally **8000** (API) if you expose the API publicly; restrict `/docs` if needed.
@@ -156,10 +156,10 @@ If an old **`pgdata`** volume was created before `docker/postgres-init.sql` ran,
 
 ### Telegram egress (Mihomo sidecar)
 
-**Mihomo** is part of the default `docker compose` stack. The bot uses **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** by default (override or clear in `.env` if you need something else).
+**Mihomo** is part of the default `docker compose` stack. The bot talks to **Telegram directly** by default (no `TELEGRAM_HTTP_PROXY`). Set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** in `.env` only when outbound access to **api.telegram.org** must go through Mihomo (e.g. you use **`PROXY_SUBSCRIPTION_*`** on the mihomo service). Forcing the bot through Mihomo in **DIRECT** mode (no subscription) can break **aiogram**’s HTTPS session on some setups, so avoid that unless you have a real upstream.
 
-- **No subscription:** Mihomo starts in **DIRECT** passthrough on port **7890** (no upstream VPN). Telegram still goes through Mihomo as a stable local HTTP proxy; use this when the network can reach **api.telegram.org** directly.
-- **With subscription:** set **`PROXY_SUBSCRIPTION_URL`**, **`PROXY_SUBSCRIPTION_FILE`**, or **`PROXY_SUBSCRIPTION_RAW`** for the `mihomo` service. The image picks the first **`vless://`** line and writes a static config (see `docker/mihomo/build_config.py`).
+- **No subscription:** Mihomo still runs in **DIRECT** passthrough on **7890** for optional use; the bot does not need it unless you configure a proxy as above.
+- **With subscription:** set **`PROXY_SUBSCRIPTION_URL`**, **`PROXY_SUBSCRIPTION_FILE`**, or **`PROXY_SUBSCRIPTION_RAW`** for `mihomo`, then set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** on the bot.
 
 **`aiohttp-socks`** is only needed for **socks5://** proxies on the bot; it is listed in `bot/pyproject.toml`.
 

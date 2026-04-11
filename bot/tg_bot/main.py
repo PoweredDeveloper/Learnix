@@ -4,7 +4,7 @@ import logging
 import httpx
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.exceptions import TelegramNetworkError
+from aiogram.exceptions import TelegramConflictError, TelegramNetworkError, TelegramUnauthorizedError
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from tg_bot.config import get_settings
@@ -57,11 +57,22 @@ async def main() -> None:
     delay_s = 5.0
     max_delay_s = 120.0
     attempt = 0
+    me = None
     while True:
         attempt += 1
         try:
-            await bot.get_me()
+            me = await bot.get_me()
             break
+        except TelegramUnauthorizedError as e:
+            logging.error("Invalid TELEGRAM_BOT_TOKEN — fix .env and restart: %s", e)
+            raise SystemExit(1) from e
+        except TelegramConflictError as e:
+            logging.error(
+                "Telegram returned conflict (another process is polling with this token). "
+                "Stop duplicate bots / duplicate compose stacks: %s",
+                e,
+            )
+            raise SystemExit(2) from e
         except TelegramNetworkError as e:
             proxy = (get_settings().telegram_http_proxy or "").strip()
             hint = (
@@ -80,6 +91,12 @@ async def main() -> None:
             )
             await asyncio.sleep(delay_s)
             delay_s = min(delay_s * 1.5, max_delay_s)
+    assert me is not None
+    logging.info(
+        "Telegram OK — polling as @%s (proxy=%r)",
+        me.username or me.first_name,
+        (s.telegram_http_proxy or "").strip() or None,
+    )
     await dp.start_polling(bot)
 
 

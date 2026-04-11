@@ -1,5 +1,6 @@
 import asyncio
 import html
+import logging
 import re
 from io import BytesIO
 from urllib.parse import quote
@@ -641,8 +642,17 @@ async def cmd_start(message: types.Message, state: FSMContext, bot: Bot) -> None
     await state.clear()
     uid = message.from_user.id
     api = backend_client(uid)
-    await api.ensure_user(message.from_user.full_name)
-    open_url, menu_ok = await refresh_web_menu(bot, uid)
+    try:
+        await api.ensure_user(message.from_user.full_name)
+        open_url, menu_ok = await refresh_web_menu(bot, uid)
+    except Exception:
+        logging.exception("cmd_start: backend or web_session failed for uid=%s", uid)
+        await message.answer(
+            "Could not reach the study server from the bot. "
+            "Check that the API is up (<code>docker compose ps</code>) and try /start again.",
+            parse_mode=ParseMode.HTML,
+        )
+        return
     lines = [
         "👋 <b>Welcome!</b>",
         "",
