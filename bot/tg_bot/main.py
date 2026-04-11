@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import socket
 
 import httpx
 from aiogram import Bot, Dispatcher
@@ -22,22 +23,27 @@ def _telegram_session() -> AiohttpSession:
 
 
 async def _log_tcp_probe(host: str, port: int) -> None:
-    """Outbound connectivity hint (TLS not exercised — only TCP handshake)."""
+    """Outbound connectivity hint (TLS not exercised — only TCP handshake). Prefer IPv4 (avoids broken AAAA)."""
     try:
-        _r, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=12.0)
+        _r, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port, family=socket.AF_INET),
+            timeout=12.0,
+        )
         writer.close()
         try:
             await writer.wait_closed()
         except Exception:
             pass
-        logging.info("Outbound TCP probe OK: %s:%s", host, port)
+        logging.info("Outbound TCP probe OK (IPv4): %s:%s", host, port)
     except Exception as e:
+        detail = f"{type(e).__name__}: {e!r}"
         logging.warning(
-            "Outbound TCP probe failed (%s:%s): %s — Telegram get_me will likely fail until "
-            "this host can reach Telegram (firewall, provider block, or use TELEGRAM_HTTP_PROXY + Mihomo subscription).",
+            "Outbound TCP probe failed (%s:%s): %s — Telegram get_me will fail until this container "
+            "can reach Telegram (open outbound TCP 443, or set PROXY_SUBSCRIPTION_* on mihomo and "
+            "TELEGRAM_HTTP_PROXY=http://mihomo:7890 on the bot).",
             host,
             port,
-            e,
+            detail,
         )
 
 

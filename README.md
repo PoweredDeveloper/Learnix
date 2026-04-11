@@ -160,10 +160,15 @@ If **`docker compose logs learnix-bot`** never shows **`Telegram OK — polling 
 
 ### Telegram egress (Mihomo sidecar)
 
-**Mihomo** is part of the default `docker compose` stack. The bot talks to **Telegram directly** by default (no `TELEGRAM_HTTP_PROXY`). Set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** in `.env` only when outbound access to **api.telegram.org** must go through Mihomo (e.g. you use **`PROXY_SUBSCRIPTION_*`** on the mihomo service). Forcing the bot through Mihomo in **DIRECT** mode (no subscription) can break **aiogram**’s HTTPS session on some setups, so avoid that unless you have a real upstream.
+**Mihomo** is part of the default `docker compose` stack. The bot talks to **Telegram directly** by default (leave **`TELEGRAM_HTTP_PROXY`** unset).
 
-- **No subscription:** Mihomo still runs in **DIRECT** passthrough on **7890** for optional use; the bot does not need it unless you configure a proxy as above.
-- **With subscription:** set **`PROXY_SUBSCRIPTION_URL`**, **`PROXY_SUBSCRIPTION_FILE`**, or **`PROXY_SUBSCRIPTION_RAW`** for `mihomo`, then set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** on the bot.
+**“Another project worked with Mihomo but I set nothing for subscriptions.”**  
+With **no** `PROXY_SUBSCRIPTION_*`, Mihomo is only **DIRECT** (same internet path as the bot). It does **not** bypass a firewall or country block: if **`api.telegram.org:443`** is blocked from the **server**, Telegram will stay broken until you add a **real upstream** (`PROXY_SUBSCRIPTION_*`) **and** point the bot at Mihomo. The other project usually differed in one of these ways: **different host/country** (Telegram not blocked), a **subscription** you did not need to think about (managed elsewhere), or **no Mihomo in the path** for Telegram at all.
+
+You may still set **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** without a subscription **only** when Telegram is **already reachable** but you want the same “always via Mihomo” hop (e.g. alignment with another stack). On some setups **aiogram + HTTPS via a DIRECT HTTP proxy** misbehaves; if that happens, leave the proxy unset or add a subscription.
+
+- **No subscription:** Mihomo = **DIRECT** on **7890**; optional **`TELEGRAM_HTTP_PROXY`** only if you want that hop and Telegram works without a block.
+- **Blocked egress:** **`PROXY_SUBSCRIPTION_URL`** (or `FILE` / `RAW`) **and** **`TELEGRAM_HTTP_PROXY=http://mihomo:7890`** — both required.
 
 **`aiohttp-socks`** is only needed for **socks5://** proxies on the bot; it is listed in `bot/pyproject.toml`.
 
