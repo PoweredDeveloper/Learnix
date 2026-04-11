@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { format } from "date-fns"
 import { api, getWebSessionKey } from "@/api"
+import TelegramSessionHint from "@/components/TelegramSessionHint"
 import type { CustomReminder, NotificationSettings } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,7 +26,7 @@ export default function Settings() {
 
   const load = useCallback(async () => {
     if (!getWebSessionKey()) {
-      setErr("Open this app from the Telegram bot link first.")
+      setErr("__NO_SESSION__")
       setLoading(false)
       return
     }
@@ -91,6 +92,21 @@ export default function Settings() {
   if (loading) {
     return (
       <div className="flex justify-center py-20 text-muted-foreground">Loading settings…</div>
+    )
+  }
+
+  if (err === "__NO_SESSION__") {
+    return (
+      <div className="mx-auto max-w-3xl flex flex-col items-center py-16 gap-6 px-4">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground self-start"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Dashboard
+        </Link>
+        <TelegramSessionHint />
+      </div>
     )
   }
 

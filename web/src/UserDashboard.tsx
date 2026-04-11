@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { API_PREFIX, captureKeyFromQuery, getWebSessionKey, webHeaders } from "./api";
+import { API_PREFIX, getWebSessionKey, webHeaders } from "./api";
+import TelegramSessionHint from "@/components/TelegramSessionHint";
 import type { Task, Streak } from "./types";
 
 type Me = {
@@ -13,14 +14,10 @@ export default function UserDashboard() {
   const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    captureKeyFromQuery();
-  }, []);
-
   const load = useCallback(async () => {
     setErr(null);
     if (!getWebSessionKey()) {
-      setErr("Open this app using the link from the Telegram bot (menu Web app or /web).");
+      setErr("__NO_SESSION__");
       setTasks([]);
       setStreak(null);
       setMe(null);
@@ -88,7 +85,13 @@ export default function UserDashboard() {
         </p>
       )}
 
-      {err && <p style={{ color: "#b91c1c" }}>{err}</p>}
+      {err && (
+        err === "__NO_SESSION__" ? (
+          <TelegramSessionHint />
+        ) : (
+          <p style={{ color: "#b91c1c" }}>{err}</p>
+        )
+      )}
 
       {streak && hasKey && (
         <section style={{ marginBottom: "1.5rem", padding: "1rem", background: "#fff", borderRadius: 8 }}>

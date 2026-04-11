@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api, getWebSessionKey } from '@/api'
+import TelegramSessionHint from '@/components/TelegramSessionHint'
 import type { Course, Streak, Me } from '@/types'
 import DashboardMetricCard from '@/components/ui/dashboard-metric-card'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +19,7 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     if (!getWebSessionKey()) {
-      setErr('Open this app using the link from the Telegram bot (menu → Web app or /web).')
+      setErr('__NO_SESSION__')
       setLoading(false)
       return
     }
@@ -49,7 +50,11 @@ export default function Dashboard() {
   if (err) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
-        <p className="text-destructive text-center max-w-md">{err}</p>
+        {err === '__NO_SESSION__' ? (
+          <TelegramSessionHint />
+        ) : (
+          <p className="text-destructive text-center max-w-md">{err}</p>
+        )}
       </div>
     )
   }

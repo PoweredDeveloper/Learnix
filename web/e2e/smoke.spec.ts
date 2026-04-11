@@ -9,7 +9,8 @@ test("admin dev page loads", async ({ page }) => {
 
 test("dashboard page loads without session key", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText(/Open this app/i)).toBeVisible();
+  await expect(page.getByText(/Web app/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: /@learnixx_bot/i })).toBeVisible();
 });
 
 test("create course page loads", async ({ page }) => {

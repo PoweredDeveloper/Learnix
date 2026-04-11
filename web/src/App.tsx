@@ -6,14 +6,8 @@ import CourseView from "@/pages/CourseView";
 import LessonView from "@/pages/LessonView";
 import AdminDashboard from "@/AdminDashboard";
 import Layout from "@/components/Layout";
-import { useEffect } from "react";
-import { captureKeyFromQuery } from "@/api";
 
 export default function App() {
-  useEffect(() => {
-    captureKeyFromQuery();
-  }, []);
-
   return (
     <BrowserRouter>
       <Routes>
