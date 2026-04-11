@@ -120,6 +120,8 @@ You do _not_ need to install Python or Node on the host if you only run services
    docker compose up -d --build
    ```
 
+   If Compose reports a **container name already in use** (for example `learnix-api-1`), remove the orphan and retry: `docker rm -f learnix-api-1`, or run `docker compose down --remove-orphans` from this repo, then `docker compose up -d` again. The stack uses project name **`learnix`** and fixed names such as **`learnix-api`** and **`learnix-web`** to avoid stray `*-1` containers when the project path changes.
+
    Services (see `docker-compose.yml`):
 
    | Service  | Host port | Notes                                                    |

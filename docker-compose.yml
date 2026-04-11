@@ -1,8 +1,14 @@
 # Stack: db + api + web (Caddy + static UI, proxies /api → api) + bot.
 # Set `TELEGRAM_BOT_TOKEN` in `.env` (project root) or the bot container will exit on startup.
+#
+# `name` + `container_name` keep stable names (avoids stale learnix-*-1 orphans after path/project changes).
+# If you still see "already in use": docker rm -f <name> && docker compose up -d
+
+name: learnix
 
 services:
   db:
+    container_name: learnix-db
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
@@ -20,6 +26,7 @@ services:
       - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
   pgadmin:
+    container_name: learnix-pgadmin
     image: dpage/pgadmin4:8
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@local.dev}
@@ -32,6 +39,7 @@ services:
       - pgadmin_data:/var/lib/pgadmin
 
   api:
+    container_name: learnix-api
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -60,6 +68,7 @@ services:
       sh -c "uv run alembic upgrade head && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   web:
+    container_name: learnix-web
     build:
       context: ./web
       dockerfile: Dockerfile
@@ -74,6 +83,7 @@ services:
         condition: service_healthy
 
   bot:
+    container_name: learnix-bot
     build:
       context: ./bot
       dockerfile: Dockerfile
@@ -96,6 +106,7 @@ services:
   # Sidecar HTTP/SOCKS proxy for Telegram (aiogram). Without PROXY_SUBSCRIPTION_* it runs DIRECT
   # passthrough on :7890 so the bot always has a stable proxy URL; add subscription for censored egress.
   mihomo:
+    container_name: learnix-mihomo
     build:
       context: ./docker/mihomo
       dockerfile: Dockerfile
