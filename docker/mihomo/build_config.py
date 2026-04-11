@@ -55,12 +55,47 @@ def load_subscription_text() -> str:
     )
 
 
+def _vless_uri_pick_score(uri: str) -> tuple[int, int]:
+    """Higher is better: prefer REALITY + xhttp on 443 (skip plain TCP fallbacks in multi-line subs)."""
+    if not uri.startswith("vless://"):
+        return (0, 0)
+    rest = uri[8:]
+    if "?" in rest:
+        main, query_s = rest.split("?", 1)
+    else:
+        main, query_s = rest, ""
+    if "#" in query_s:
+        query_s = query_s.split("#", 1)[0]
+    if "@" not in main:
+        return (0, 0)
+    _, hostport = main.rsplit("@", 1)
+    hostport = hostport.strip()
+    if ":" in hostport:
+        _, port_s = hostport.rsplit(":", 1)
+        try:
+            port = int(port_s)
+        except ValueError:
+            port = 0
+    else:
+        port = 443
+    qs = urllib.parse.parse_qs(query_s, keep_blank_values=True)
+    sec = (_qget(qs, "security") or "none").lower()
+    net = (_qget(qs, "type") or "tcp").lower()
+    score = 0
+    if sec == "reality":
+        score += 100
+    if net == "xhttp":
+        score += 10
+    if port == 443:
+        score += 1
+    return (score, port)
+
+
 def first_vless_uri(text: str) -> str:
-    for line in text.splitlines():
-        line = line.strip()
-        if line.startswith("vless://"):
-            return line
-    raise ValueError("no vless:// entry found in subscription")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith("vless://")]
+    if not lines:
+        raise ValueError("no vless:// entry found in subscription")
+    return max(lines, key=_vless_uri_pick_score)
 
 
 def _qget(qs: dict[str, list[str]], key: str, default: str | None = None) -> str | None:
@@ -79,6 +114,9 @@ def vless_uri_to_proxy(uri: str) -> dict:
         main, query_s = rest.split("?", 1)
     else:
         main, query_s = rest, ""
+    # Fragment (#display-name / trailing junk) must not be fed to parse_qs or it corrupts the last param (e.g. type=xhttp#…).
+    if "#" in query_s:
+        query_s = query_s.split("#", 1)[0]
     if "@" not in main:
         raise ValueError("invalid vless authority")
     uuid, hostport = main.rsplit("@", 1)
@@ -123,6 +161,18 @@ def vless_uri_to_proxy(uri: str) -> dict:
     elif net == "grpc":
         proxy["network"] = "grpc"
         proxy["grpc-opts"] = {"grpc-service-name": _qget(qs, "serviceName") or ""}
+    elif net == "xhttp":
+        # VLESS + REALITY + xHTTP (common in modern panels). Wrongly using tcp breaks the tunnel → ClientOSError in clients.
+        proxy["network"] = "xhttp"
+        path = urllib.parse.unquote(_qget(qs, "path") or "/")
+        sni_val = _qget(qs, "sni") or host
+        host_hdr = (_qget(qs, "host") or "").strip() or sni_val
+        xhttp_opts: dict = {"path": path, "host": host_hdr}
+        mode = (_qget(qs, "mode") or "").strip()
+        if mode and mode.lower() != "auto":
+            xhttp_opts["mode"] = mode
+        proxy["xhttp-opts"] = xhttp_opts
+        proxy["alpn"] = ["h2"]
     else:
         proxy["network"] = "tcp"
 
@@ -143,7 +193,11 @@ def vless_uri_to_proxy(uri: str) -> dict:
         sid = _qget(qs, "sid") or ""
         if not pbk:
             raise ValueError("reality security requires pbk= in subscription URI")
-        proxy["reality-opts"] = {"public-key": pbk, "short-id": sid}
+        ro: dict[str, str] = {"public-key": pbk, "short-id": sid}
+        spx = (_qget(qs, "spx") or "").strip()
+        if spx:
+            ro["spider-x"] = urllib.parse.unquote(spx)
+        proxy["reality-opts"] = ro
         sni = _qget(qs, "sni") or host
         if sni:
             proxy["servername"] = sni

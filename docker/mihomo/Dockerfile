@@ -6,7 +6,7 @@ FROM python:3.12-alpine
 RUN apk add --no-cache ca-certificates curl gzip \
   && set -eux \
   && ARCH="$(uname -m)" \
-  && VER=v1.18.10 \
+  && VER=v1.19.23 \
   && case "$ARCH" in \
        x86_64) U="https://github.com/MetaCubeX/mihomo/releases/download/${VER}/mihomo-linux-amd64-compatible-${VER}.gz" ;; \
        aarch64) U="https://github.com/MetaCubeX/mihomo/releases/download/${VER}/mihomo-linux-arm64-${VER}.gz" ;; \

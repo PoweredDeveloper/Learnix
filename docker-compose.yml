@@ -59,7 +59,13 @@ services:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+        ]
       interval: 5s
       timeout: 3s
       retries: 15
@@ -100,9 +106,12 @@ services:
     depends_on:
       api:
         condition: service_healthy
+      mihomo:
+        condition: service_started
 
   # Sidecar HTTP/SOCKS proxy for Telegram (aiogram). Without PROXY_SUBSCRIPTION_* it runs DIRECT
   # passthrough on :7890 so the bot always has a stable proxy URL; add subscription for censored egress.
+  # When the subscription content changes (new sid/spx), restart mihomo so entrypoint rebuilds /config/config.yaml.
   mihomo:
     container_name: learnix-mihomo
     build:
