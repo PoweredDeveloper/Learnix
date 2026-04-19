@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
+      "Bash(curl -s http://localhost:5173/)",
+      "Bash(docker exec:*)",
+      "Bash(docker port:*)",
+      "Bash(python3 -m json.tool)",
+      "Bash(kill 19782 19988 19981 19979 19772 19764)",
+      "Bash(curl -s -o /dev/null -w %{http_code} http://localhost:5173/)"
+    ]
+  }
+}
